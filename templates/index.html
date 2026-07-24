@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-<title>Fichário Clínico — Gerador de Flashcards</title>
+<title>Francards</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600&family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
@@ -11,14 +11,14 @@
 </head>
 <body>
 
-<div class="rail" aria-hidden="true">GERADOR&nbsp;DE&nbsp;FICHAS&nbsp;·&nbsp;ANKI</div>
+<div class="rail" aria-hidden="true">GERADOR&nbsp;DE&nbsp;FLASHCARDS</div>
 
 <div class="page">
 
   <header class="masthead">
-    <span class="tab">Fichário&nbsp;Clínico</span>
-    <h1>Da resolução ao cartão de estudo.</h1>
-    <p class="sub">Cole o raciocínio de uma questão, a IA extrai o que vale virar ficha — e você manda direto pro Anki.</p>
+    <span class="tab">Gerador&nbsp;de Flashcards</span>
+    <h1>Da resolução à memorização.</h1>
+    <p class="sub">Cole a resolução de uma questão, a IA extrai o que vale memorizar — e você manda direto pro Anki no formato de flashcard.</p>
     <span id="ankiStatus" class="status-pill" data-state="checking">verificando AnkiConnect…</span>
   </header>
 
@@ -31,12 +31,11 @@
           <span>Provedor de IA</span>
           <select id="provider">
             <option value="gemini">Gemini</option>
-            <option value="deepseek">DeepSeek</option>
           </select>
         </label>
 
         <label class="field">
-          <span>Chave de API (deixe em branco se já houver uma fixa no servidor)</span>
+          <span>Chave de API</span>
           <input type="password" id="apiKey" placeholder="cole sua chave aqui" autocomplete="off" spellcheck="false">
         </label>
 
@@ -71,7 +70,7 @@
             <input type="text" id="ankiUrl" value="http://127.0.0.1:8765" autocomplete="off" spellcheck="false">
           </label>
           <label class="field">
-            <span>Chave do AnkiConnect (apiKey, se configurada)</span>
+            <span>Chave do AnkiConnect</span>
             <input type="password" id="ankiApiKey" placeholder="deixe em branco se não usar" autocomplete="off" spellcheck="false">
           </label>
         </div>
