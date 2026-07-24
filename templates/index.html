@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>Fichário Clínico — Gerador de Flashcards</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600&family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/style.css">
+</head>
+<body>
+
+<div class="rail" aria-hidden="true">GERADOR&nbsp;DE&nbsp;FICHAS&nbsp;·&nbsp;ANKI</div>
+
+<div class="page">
+
+  <header class="masthead">
+    <span class="tab">Fichário&nbsp;Clínico</span>
+    <h1>Da resolução ao cartão de estudo.</h1>
+    <p class="sub">Cole o raciocínio de uma questão, a IA extrai o que vale virar ficha — e você manda direto pro Anki.</p>
+    <span id="ankiStatus" class="status-pill" data-state="checking">verificando AnkiConnect…</span>
+  </header>
+
+  <main>
+    <section class="panel" id="configPanel">
+      <h2 class="panel-title"><span class="idx">01</span> Configuração</h2>
+
+      <div class="field-grid">
+        <label class="field">
+          <span>Provedor de IA</span>
+          <select id="provider">
+            <option value="gemini">Gemini</option>
+            <option value="deepseek">DeepSeek</option>
+          </select>
+        </label>
+
+        <label class="field">
+          <span>Chave de API (deixe em branco se já houver uma fixa no servidor)</span>
+          <input type="password" id="apiKey" placeholder="cole sua chave aqui" autocomplete="off" spellcheck="false">
+        </label>
+
+        <label class="field">
+          <span>Baralho no Anki</span>
+          <input type="text" id="deckName" value="Flashcards Automáticos" autocomplete="off" spellcheck="false">
+        </label>
+
+        <label class="field">
+          <span>Tags (separadas por espaço)</span>
+          <input type="text" id="tags" placeholder="ex: cardio residencia" autocomplete="off" spellcheck="false">
+        </label>
+      </div>
+
+      <details class="advanced">
+        <summary>Avançado — modelo de nota e endereço do AnkiConnect</summary>
+        <div class="field-grid">
+          <label class="field">
+            <span>Modelo de nota</span>
+            <input type="text" id="modelName" value="Basic" autocomplete="off" spellcheck="false">
+          </label>
+          <label class="field">
+            <span>Campo da frente</span>
+            <input type="text" id="frontField" value="Front" autocomplete="off" spellcheck="false">
+          </label>
+          <label class="field">
+            <span>Campo do verso</span>
+            <input type="text" id="backField" value="Back" autocomplete="off" spellcheck="false">
+          </label>
+          <label class="field">
+            <span>Endereço do AnkiConnect</span>
+            <input type="text" id="ankiUrl" value="http://127.0.0.1:8765" autocomplete="off" spellcheck="false">
+          </label>
+          <label class="field">
+            <span>Chave do AnkiConnect (apiKey, se configurada)</span>
+            <input type="password" id="ankiApiKey" placeholder="deixe em branco se não usar" autocomplete="off" spellcheck="false">
+          </label>
+        </div>
+        <p class="hint">Deixe o padrão se você acessa esta página pelo mesmo computador onde o Anki está aberto. Para usar de outros aparelhos, veja o README sobre Tailscale Serve (só seus aparelhos) ou Tailscale Funnel (qualquer aparelho, exige a chave acima configurada por segurança).</p>
+      </details>
+    </section>
+
+    <section class="panel" id="inputPanel">
+      <h2 class="panel-title"><span class="idx">02</span> Resolução da questão</h2>
+      <textarea id="resolucao" rows="11" placeholder="Cole aqui a resolução completa da questão — quanto mais raciocínio clínico explicado, melhores as fichas."></textarea>
+      <div class="actions">
+        <button id="generateBtn" class="btn-primary">Gerar flashcards</button>
+        <span id="genStatus" class="inline-status" role="status" aria-live="polite"></span>
+      </div>
+    </section>
+
+    <section class="panel" id="resultsPanel" hidden>
+      <div class="results-header">
+        <h2 class="panel-title"><span class="idx">03</span> <span id="drawerLabel">Fichas geradas</span></h2>
+        <div class="results-buttons">
+          <button id="downloadBtn" class="btn-secondary">Baixar fichas (.txt)</button>
+          <button id="sendAllBtn" class="btn-secondary">Enviar todas para o Anki</button>
+        </div>
+      </div>
+      <div id="cardsGrid" class="cards-grid"></div>
+    </section>
+  </main>
+
+  <footer>
+    <p>As fichas vão do seu navegador direto para o AnkiConnect — a resolução passa pelo servidor apenas para chamar a IA, e nada é armazenado.</p>
+  </footer>
+
+</div>
+
+<script src="/script.js"></script>
+</body>
+</html>
