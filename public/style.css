@@ -423,3 +423,31 @@ footer {
   .card { animation: none; }
   button { transition: none; }
 }
+/* Estilização do accordion de configuração */
+.config-details summary {
+  cursor: pointer;
+  list-style: none;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.config-details summary::-webkit-details-marker {
+  display: none;
+}
+
+.config-details summary::before {
+  content: "▶";
+  font-size: 0.8rem;
+  transition: transform 0.2s;
+  color: var(--text-secondary, #666);
+}
+
+.config-details[open] summary::before {
+  transform: rotate(90deg);
+}
+
+/* Espaçamento interno do conteúdo */
+.config-details .field-grid {
+  margin-top: 1.5rem;
+}
