@@ -24,58 +24,64 @@
   </header>
 
   <main>
+    <!-- CONFIGURAÇÃO AGORA É UM MENU SUSPENSO -->
     <section class="panel" id="configPanel">
-      <h2 class="panel-title"><span class="idx">01</span> Configuração</h2>
-
-      <div class="field-grid">
-        <label class="field">
-          <span>Provedor de IA</span>
-          <select id="provider">
-            <option value="gemini">Gemini</option>
-          </select>
-        </label>
-
-        <label class="field">
-          <span>Chave de API</span>
-          <input type="password" id="apiKey" placeholder="cole sua chave aqui" autocomplete="off" spellcheck="false">
-        </label>
-
-        <label class="field">
-          <span>Baralho no Anki</span>
-          <input type="text" id="deckName" value="Flashcards Automáticos" autocomplete="off" spellcheck="false">
-        </label>
-
-        <label class="field">
-          <span>Tags (separadas por espaço)</span>
-          <input type="text" id="tags" placeholder="ex: cardio residencia" autocomplete="off" spellcheck="false">
-        </label>
-      </div>
-
-      <details class="advanced">
-        <summary>Avançado — modelo de nota e endereço do AnkiConnect</summary>
+      <details class="config-details" open>
+        <summary class="panel-title">
+          <span class="idx">01</span> Configuração
+        </summary>
+        
         <div class="field-grid">
           <label class="field">
-            <span>Modelo de nota</span>
-            <input type="text" id="modelName" value="Basic" autocomplete="off" spellcheck="false">
+            <span>Provedor de IA</span>
+            <select id="provider">
+              <option value="gemini">Gemini</option>
+            </select>
           </label>
+
           <label class="field">
-            <span>Campo da frente</span>
-            <input type="text" id="frontField" value="Front" autocomplete="off" spellcheck="false">
+            <span>Chave de API</span>
+            <input type="password" id="apiKey" placeholder="cole sua chave aqui" autocomplete="off" spellcheck="false">
           </label>
+
           <label class="field">
-            <span>Campo do verso</span>
-            <input type="text" id="backField" value="Back" autocomplete="off" spellcheck="false">
+            <span>Baralho no Anki</span>
+            <input type="text" id="deckName" value="Flashcards Automáticos" autocomplete="off" spellcheck="false">
           </label>
+
           <label class="field">
-            <span>Endereço do AnkiConnect</span>
-            <input type="text" id="ankiUrl" value="https://jarvis-lenovo.tail5a31ce.ts.net/" autocomplete="off" spellcheck="false">
-          </label>
-          <label class="field">
-            <span>Chave do AnkiConnect</span>
-            <input type="password" id="ankiApiKey" placeholder="deixe em branco se não usar" autocomplete="off" spellcheck="false">
+            <span>Tags (separadas por espaço)</span>
+            <input type="text" id="tags" placeholder="ex: cardio residencia" autocomplete="off" spellcheck="false">
           </label>
         </div>
-        <p class="hint">Deixe o padrão se você acessa esta página pelo mesmo computador onde o Anki está aberto. Para usar de outros aparelhos, veja o README sobre Tailscale Serve (só seus aparelhos) ou Tailscale Funnel (qualquer aparelho, exige a chave acima configurada por segurança).</p>
+
+        <!-- Sub-accordion para avançado -->
+        <details class="advanced">
+          <summary>Avançado — modelo de nota e endereço do AnkiConnect</summary>
+          <div class="field-grid">
+            <label class="field">
+              <span>Modelo de nota</span>
+              <input type="text" id="modelName" value="Basic" autocomplete="off" spellcheck="false">
+            </label>
+            <label class="field">
+              <span>Campo da frente</span>
+              <input type="text" id="frontField" value="Front" autocomplete="off" spellcheck="false">
+            </label>
+            <label class="field">
+              <span>Campo do verso</span>
+              <input type="text" id="backField" value="Back" autocomplete="off" spellcheck="false">
+            </label>
+            <label class="field">
+              <span>Endereço do AnkiConnect</span>
+              <input type="text" id="ankiUrl" value="https://jarvis-lenovo.tail5a31ce.ts.net/" autocomplete="off" spellcheck="false">
+            </label>
+            <label class="field">
+              <span>Chave do AnkiConnect</span>
+              <input type="password" id="ankiApiKey" placeholder="deixe em branco se não usar" autocomplete="off" spellcheck="false">
+            </label>
+          </div>
+          <p class="hint">Deixe o padrão se você acessa esta página pelo mesmo computador onde o Anki está aberto. Para usar de outros aparelhos, veja o README sobre Tailscale Serve (só seus aparelhos) ou Tailscale Funnel (qualquer aparelho, exige a chave acima configurada por segurança).</p>
+        </details>
       </details>
     </section>
 
