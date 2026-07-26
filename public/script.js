@@ -15,6 +15,7 @@
     ankiApiKey: $("ankiApiKey"),
     resolucao: $("resolucao"),
     generateBtn: $("generateBtn"),
+    generateMoreBtn: $("generateMoreBtn"),
     genStatus: $("genStatus"),
     resultsPanel: $("resultsPanel"),
     cardsGrid: $("cardsGrid"),
@@ -146,11 +147,23 @@
     else els.genStatus.removeAttribute("data-state");
   }
 
-  async function generateFlashcards() {
+  async function callGenerateApi(extra = {}) {
     const resolucao = els.resolucao.value.trim();
     const provider = els.provider.value;
     const apiKey = els.apiKey.value.trim();
 
+    const res = await fetch("/api/generate", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ resolucao, provider, api_key: apiKey, ...extra }),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || `Erro ${res.status}`);
+    return data.flashcards;
+  }
+
+  async function generateFlashcards() {
+    const resolucao = els.resolucao.value.trim();
     if (resolucao.length < 20) {
       setGenStatus("Cole o texto completo da resolução antes de gerar.", "error");
       return;
@@ -160,23 +173,49 @@
     setGenStatus("Consultando a IA…");
 
     try {
-      const res = await fetch("/api/generate", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ resolucao, provider, api_key: apiKey }),
-      });
-      const data = await res.json();
-
-      if (!res.ok) {
-        throw new Error(data.error || `Erro ${res.status}`);
-      }
-
-      renderCards(data.flashcards);
-      setGenStatus(`${data.flashcards.length} ficha(s) gerada(s).`, "ok");
+      const flashcards = await callGenerateApi();
+      renderCards(flashcards);
+      setGenStatus(`${flashcards.length} ficha(s) gerada(s).`, "ok");
     } catch (err) {
       setGenStatus(err.message || "Falha ao gerar flashcards.", "error");
     } finally {
       setGenerating(false);
+    }
+  }
+
+  function collectCurrentCards() {
+    return Array.from(els.cardsGrid.querySelectorAll(".card")).map((el) => ({
+      pergunta: el.querySelector(".q-field").value.trim(),
+      resposta: el.querySelector(".a-field").value.trim(),
+    }));
+  }
+
+  async function generateMoreFlashcards() {
+    const resolucao = els.resolucao.value.trim();
+    if (resolucao.length < 20) {
+      setGenStatus("Cole o texto completo da resolução antes de gerar.", "error");
+      return;
+    }
+
+    const existentes = collectCurrentCards();
+
+    els.generateMoreBtn.disabled = true;
+    els.generateMoreBtn.textContent = "Gerando mais…";
+    setGenStatus("Consultando a IA por fichas adicionais…");
+
+    try {
+      const novas = await callGenerateApi({ existentes });
+      if (novas.length === 0) {
+        setGenStatus("A IA não encontrou nada de novo para extrair desta resolução.", "ok");
+      } else {
+        appendCards(novas);
+        setGenStatus(`${novas.length} ficha(s) nova(s) adicionada(s).`, "ok");
+      }
+    } catch (err) {
+      setGenStatus(err.message || "Falha ao gerar mais flashcards.", "error");
+    } finally {
+      els.generateMoreBtn.disabled = false;
+      els.generateMoreBtn.textContent = "Gerar mais fichas";
     }
   }
 
@@ -188,6 +227,15 @@
     flashcards.forEach((card, i) => {
       els.cardsGrid.appendChild(buildCardEl(card, i));
     });
+  }
+
+  function appendCards(flashcards) {
+    const startIndex = els.cardsGrid.children.length;
+    els.resultsPanel.hidden = false;
+    flashcards.forEach((card, i) => {
+      els.cardsGrid.appendChild(buildCardEl(card, startIndex + i));
+    });
+    els.drawerLabel.textContent = `Fichas geradas — ${els.cardsGrid.children.length}`;
   }
 
   function buildCardEl(card, index) {
@@ -342,6 +390,7 @@
   }
 
   els.generateBtn.addEventListener("click", generateFlashcards);
+  els.generateMoreBtn.addEventListener("click", generateMoreFlashcards);
   els.sendAllBtn.addEventListener("click", sendAllCards);
   els.downloadBtn.addEventListener("click", downloadCardsAsText);
 
