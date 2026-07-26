@@ -64,8 +64,24 @@ RESOLUÇÃO DA QUESTÃO:
 """
 
 
-def build_prompt(resolucao: str) -> str:
-    return PROMPT_TEMPLATE.format(resolucao=resolucao.strip())
+EXISTING_BLOCK_TEMPLATE = """
+ATENÇÃO: já foram geradas as fichas abaixo a partir desta mesma resolução.
+NÃO repita a mesma pergunta (nem reformulada) para nenhuma delas. Gere apenas
+fichas NOVAS, cobrindo aspectos da resolução que essas ainda não cobrem. Se a
+resolução já foi esgotada e não sobrar nada de novo e relevante, retorne uma
+lista vazia.
+
+FICHAS JÁ EXISTENTES:
+{existentes_json}
+"""
+
+
+def build_prompt(resolucao: str, existentes=None) -> str:
+    prompt = PROMPT_TEMPLATE.format(resolucao=resolucao.strip())
+    if existentes:
+        existentes_json = json.dumps(existentes, ensure_ascii=False, indent=2)
+        prompt += EXISTING_BLOCK_TEMPLATE.format(existentes_json=existentes_json)
+    return prompt
 
 
 # ---------------------------------------------------------------------------
@@ -123,8 +139,8 @@ def normalize_flashcards(raw) -> list:
 # ---------------------------------------------------------------------------
 
 
-def call_gemini(resolucao: str, api_key: str) -> list:
-    prompt = build_prompt(resolucao)
+def call_gemini(resolucao: str, api_key: str, existentes=None) -> list:
+    prompt = build_prompt(resolucao, existentes)
     payload = {
         "contents": [{"parts": [{"text": prompt}]}],
         "generationConfig": {"temperature": 0.25, "maxOutputTokens": 4096},
@@ -158,8 +174,8 @@ def call_gemini(resolucao: str, api_key: str) -> list:
     raise last_error or ValueError("Nenhum modelo Gemini disponível respondeu.")
 
 
-def call_deepseek(resolucao: str, api_key: str) -> list:
-    prompt = build_prompt(resolucao)
+def call_deepseek(resolucao: str, api_key: str, existentes=None) -> list:
+    prompt = build_prompt(resolucao, existentes)
     headers = {
         "Authorization": f"Bearer {api_key}",
         "Content-Type": "application/json",
@@ -205,6 +221,9 @@ def generate():
     provider = (data.get("provider") or "gemini").strip().lower()
     api_key = (data.get("api_key") or "").strip()
 
+    existentes_raw = data.get("existentes") or []
+    existentes = normalize_flashcards(existentes_raw) if isinstance(existentes_raw, list) else []
+
     # Permite fixar uma chave no servidor via variável de ambiente, como fallback.
     if not api_key:
         env_var = "GEMINI_API_KEY" if provider == "gemini" else "DEEPSEEK_API_KEY"
@@ -221,9 +240,9 @@ def generate():
 
     try:
         if provider == "gemini":
-            flashcards = call_gemini(resolucao, api_key)
+            flashcards = call_gemini(resolucao, api_key, existentes)
         else:
-            flashcards = call_deepseek(resolucao, api_key)
+            flashcards = call_deepseek(resolucao, api_key, existentes)
     except requests.exceptions.HTTPError as exc:
         detail = exc.response.text[:300] if exc.response is not None else str(exc)
         return jsonify({"error": f"A API de IA recusou a requisição: {detail}"}), 502
@@ -233,6 +252,10 @@ def generate():
         return jsonify({"error": f"Não foi possível interpretar a resposta da IA: {exc}"}), 502
 
     if not flashcards:
+        if existentes:
+            # Pedido de "gerar mais": lista vazia é uma resposta válida,
+            # só significa que não sobrou nada de novo pra extrair.
+            return jsonify({"flashcards": []})
         return (
             jsonify(
                 {
