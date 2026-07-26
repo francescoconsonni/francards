@@ -26,10 +26,6 @@
 
   const STORAGE_KEY = "flashcard_anki_settings_v1";
 
-  // ------------------------------------------------------------------
-  // Persistência das configurações no navegador (não vai para nenhum servidor)
-  // ------------------------------------------------------------------
-
   function loadSettings() {
     try {
       const saved = JSON.parse(localStorage.getItem(STORAGE_KEY) || "{}");
@@ -67,10 +63,6 @@
     "modelName", "frontField", "backField", "ankiUrl", "ankiApiKey",
   ].forEach((id) => els[id].addEventListener("change", saveSettings));
 
-  // ------------------------------------------------------------------
-  // AnkiConnect
-  // ------------------------------------------------------------------
-
   async function ankiRequest(action, params = {}) {
     const body = { action, version: 6, params };
     const key = els.ankiApiKey.value.trim();
@@ -102,6 +94,24 @@
     await ankiRequest("createDeck", { deck: deckName });
   }
 
+  async function triggerAnkiSync() {
+    const previousText = els.ankiStatus.textContent;
+    const previousState = els.ankiStatus.dataset.state;
+    els.ankiStatus.textContent = "sincronizando com o AnkiWeb…";
+    try {
+      await ankiRequest("sync");
+      els.ankiStatus.textContent = "sincronizado com o AnkiWeb ✓";
+    } catch (_) {
+      els.ankiStatus.textContent = previousText;
+      els.ankiStatus.dataset.state = previousState;
+      return;
+    }
+    setTimeout(() => {
+      els.ankiStatus.textContent = previousText;
+      els.ankiStatus.dataset.state = previousState;
+    }, 4000);
+  }
+
   async function sendCardToAnki(card) {
     const deckName = els.deckName.value.trim() || "Padrão";
     const tags = els.tags.value.trim().split(/\s+/).filter(Boolean);
@@ -124,10 +134,6 @@
 
     return ankiRequest("addNote", { note });
   }
-
-  // ------------------------------------------------------------------
-  // Geração de flashcards
-  // ------------------------------------------------------------------
 
   function setGenerating(isGenerating) {
     els.generateBtn.disabled = isGenerating;
@@ -173,10 +179,6 @@
       setGenerating(false);
     }
   }
-
-  // ------------------------------------------------------------------
-  // Renderização das fichas
-  // ------------------------------------------------------------------
 
   function renderCards(flashcards) {
     els.cardsGrid.innerHTML = "";
@@ -237,9 +239,10 @@
     sendBtn.type = "button";
     sendBtn.textContent = "Enviar para o Anki";
 
-    sendBtn.addEventListener("click", () =>
-      sendSingleCard(sendBtn, flag, { pergunta: qField.value.trim(), resposta: aField.value.trim() })
-    );
+    sendBtn._sendAction = (opts) =>
+      sendSingleCard(sendBtn, flag, { pergunta: qField.value.trim(), resposta: aField.value.trim() }, opts);
+
+    sendBtn.addEventListener("click", () => sendBtn._sendAction());
 
     footer.append(delBtn, sendBtn);
     el.append(serial, qLabel, qField, divider, aLabel, aField, footer);
@@ -255,7 +258,7 @@
     setTimeout(resize, 0);
   }
 
-  async function sendSingleCard(button, flagEl, card) {
+  async function sendSingleCard(button, flagEl, card, { sync = true } = {}) {
     if (!card.pergunta || !card.resposta) {
       alert("Pergunta e resposta não podem ficar vazias.");
       return;
@@ -270,6 +273,7 @@
       button.dataset.sent = "true";
       flagEl.textContent = "enviado";
       flagEl.dataset.sent = "true";
+      if (sync) triggerAnkiSync();
     } catch (err) {
       button.textContent = original;
       const msg = String(err.message || err);
@@ -301,25 +305,15 @@
     let done = 0;
     for (const el of pending) {
       const btn = el.querySelector(".btn-send");
-      btn.click();
-      // Espera o botão terminar (fica desabilitado durante o envio).
-      await waitForButtonIdle(btn);
+      await btn._sendAction({ sync: false });
       done += 1;
       els.sendAllBtn.textContent = `Enviando ${done}/${pending.length}…`;
     }
 
+    await triggerAnkiSync();
+
     els.sendAllBtn.textContent = "Enviar todas para o Anki";
     els.sendAllBtn.disabled = false;
-  }
-
-  function waitForButtonIdle(button) {
-    return new Promise((resolve) => {
-      const check = () => {
-        if (!button.disabled) resolve();
-        else setTimeout(check, 80);
-      };
-      setTimeout(check, 80);
-    });
   }
 
   function downloadCardsAsText() {
@@ -346,10 +340,6 @@
     a.remove();
     URL.revokeObjectURL(url);
   }
-
-  // ------------------------------------------------------------------
-  // Wiring
-  // ------------------------------------------------------------------
 
   els.generateBtn.addEventListener("click", generateFlashcards);
   els.sendAllBtn.addEventListener("click", sendAllCards);
