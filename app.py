@@ -43,6 +43,7 @@ REGRAS OBRIGATÓRIAS (siga todas, sem exceção):
 7. Gere entre 3 e 10 flashcards, de acordo com a densidade real de informação relevante.
 8. Se a resolução não tiver conteúdo suficiente para nenhum flashcard de qualidade,
    retorne uma lista vazia.
+9. Aproveite as dicas, mnemônicos e pontos chave ressaltados pela resolução.
 
 EXEMPLOS DO ESTILO ESPERADO (tema diferente do texto abaixo, apenas para calibrar o padrão):
 [
