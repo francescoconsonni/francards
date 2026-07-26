@@ -12,7 +12,7 @@ app = Flask(__name__, static_folder="public", static_url_path="")
 
 # A Google aposenta modelos do Gemini com frequência. Tentamos o mais atual
 # primeiro e, se ele não existir mais (404), caímos para o próximo da lista.
-GEMINI_MODELS = ["gemini-3.6-flash", "gemini-2.5-flash", "gemini-flash-latest"]
+GEMINI_MODELS = ["gemini-3.6-flash", "gemini-2.5-flash", "gemini-flash-latest", "gemini-3.5-flash-lite"]
 GEMINI_URL = (
     "https://generativelanguage.googleapis.com/v1beta/models/"
     "{model}:generateContent?key={key}"
