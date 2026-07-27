@@ -1,7 +1,9 @@
 (() => {
   "use strict";
 
+
   const $ = (id) => document.getElementById(id);
+
 
 
   const els = {
@@ -13,6 +15,7 @@
     tags: $("tags"),
 
     modelName: $("modelName"),
+
     frontField: $("frontField"),
     backField: $("backField"),
 
@@ -20,6 +23,7 @@
     ankiApiKey: $("ankiApiKey"),
 
     resolucao: $("resolucao"),
+    instrucao: $("instrucao"),
 
     generateBtn: $("generateBtn"),
     generateMoreBtn: $("generateMoreBtn"),
@@ -36,14 +40,14 @@
 
     ankiStatus: $("ankiStatus"),
 
-    // NOVO
-    morePrompt: $("morePrompt"),
   };
 
 
 
-  const STORAGE_KEY =
-    "flashcard_anki_settings_v1";
+
+  const STORAGE_KEY = "flashcard_anki_settings_v2";
+
+
 
 
 
@@ -56,7 +60,7 @@
       );
 
 
-      Object.keys(saved).forEach((key) => {
+      Object.keys(saved).forEach((key)=>{
 
         if (els[key]) {
           els[key].value = saved[key];
@@ -72,24 +76,24 @@
 
 
 
+
   function saveSettings() {
 
-    const settings = {
+    const settings = {};
 
-      provider: els.provider.value,
-      apiKey: els.apiKey.value,
 
-      deckName: els.deckName.value,
-      tags: els.tags.value,
+    Object.keys(els).forEach((key)=>{
 
-      modelName: els.modelName.value,
-      frontField: els.frontField.value,
-      backField: els.backField.value,
+      if (
+        els[key] &&
+        "value" in els[key]
+      ) {
 
-      ankiUrl: els.ankiUrl.value,
-      ankiApiKey: els.ankiApiKey.value,
+        settings[key] = els[key].value;
 
-    };
+      }
+
+    });
 
 
     localStorage.setItem(
@@ -102,23 +106,20 @@
 
 
 
-  [
-    "provider",
-    "apiKey",
-    "deckName",
-    "tags",
-    "modelName",
-    "frontField",
-    "backField",
-    "ankiUrl",
-    "ankiApiKey",
 
-  ].forEach((id) => {
+  Object.keys(els).forEach((key)=>{
 
-    els[id].addEventListener(
-      "change",
-      saveSettings
-    );
+    if (
+      els[key] &&
+      "addEventListener" in els[key]
+    ) {
+
+      els[key].addEventListener(
+        "change",
+        saveSettings
+      );
+
+    }
 
   });
 
@@ -126,16 +127,19 @@
 
 
 
+
+
   async function ankiRequest(
     action,
-    params = {}
+    params={}
   ) {
+
 
     const body = {
 
       action,
-      version: 6,
-      params,
+      version:6,
+      params
 
     };
 
@@ -144,35 +148,33 @@
       els.ankiApiKey.value.trim();
 
 
-    if (key) {
-
+    if(key){
       body.key = key;
-
     }
 
 
 
-    const res = await fetch(
+    const response = await fetch(
       els.ankiUrl.value.trim(),
       {
-        method: "POST",
 
-        headers: {
-          "Content-Type":
-            "application/json",
+        method:"POST",
+
+        headers:{
+          "Content-Type":"application/json"
         },
 
-        body:
-          JSON.stringify(body),
+        body:JSON.stringify(body)
+
       }
     );
 
 
 
-    if (!res.ok) {
+    if(!response.ok){
 
       throw new Error(
-        `AnkiConnect respondeu ${res.status}`
+        `AnkiConnect respondeu ${response.status}`
       );
 
     }
@@ -180,15 +182,16 @@
 
 
     const data =
-      await res.json();
+      await response.json();
 
 
 
-    if (data.error) {
+    if(data.error){
 
       throw new Error(data.error);
 
     }
+
 
 
     return data.result;
@@ -199,34 +202,25 @@
 
 
 
-  async function checkAnkiConnection() {
-
-    try {
-
-      await ankiRequest(
-        "version"
-      );
 
 
-      els.ankiStatus.dataset.state =
-        "ok";
+  async function checkAnkiConnection(){
 
+    try{
 
+      await ankiRequest("version");
+
+      els.ankiStatus.dataset.state="ok";
       els.ankiStatus.textContent =
         "AnkiConnect conectado";
 
 
+    }catch(e){
 
-    } catch (_) {
-
-
-      els.ankiStatus.dataset.state =
-        "error";
-
+      els.ankiStatus.dataset.state="error";
 
       els.ankiStatus.textContent =
-        "AnkiConnect não encontrado — abra o Anki";
-
+        "AnkiConnect não encontrado";
 
     }
 
@@ -236,12 +230,15 @@
 
 
 
-  async function ensureDeck(deckName) {
+
+
+
+  async function ensureDeck(name){
 
     await ankiRequest(
       "createDeck",
       {
-        deck: deckName,
+        deck:name
       }
     );
 
@@ -250,15 +247,16 @@
 
 
 
-  async function triggerAnkiSync() {
 
-    try {
 
-      await ankiRequest(
-        "sync"
-      );
 
-    } catch (_) {}
+  async function triggerAnkiSync(){
+
+    try{
+
+      await ankiRequest("sync");
+
+    }catch(_){}
 
   }
 
@@ -266,12 +264,18 @@
 
 
 
-  async function sendCardToAnki(card) {
 
-    const deckName =
-      els.deckName.value.trim()
-      ||
-      "Padrão";
+
+  async function sendCardToAnki(card){
+
+
+    const deck =
+      els.deckName.value.trim() ||
+      "Medicina";
+
+
+    await ensureDeck(deck);
+
 
 
     const tags =
@@ -282,53 +286,50 @@
 
 
 
-    await ensureDeck(
-      deckName
-    );
-
-
-
-    const note = {
-
-      deckName,
-
-      modelName:
-        els.modelName.value.trim()
-        ||
-        "Basic",
-
-
-      fields: {
-
-        [els.frontField.value.trim() || "Front"]:
-          card.pergunta,
-
-
-        [els.backField.value.trim() || "Back"]:
-          card.resposta,
-
-      },
-
-
-      tags,
-
-
-      options: {
-
-        allowDuplicate: false,
-
-        duplicateScope: "deck",
-
-      },
-
-    };
-
-
 
     return ankiRequest(
       "addNote",
       {
-        note,
+
+        note:{
+
+          deckName:deck,
+
+          modelName:
+            els.modelName.value.trim()
+            || "Basic",
+
+
+          fields:{
+
+            [
+              els.frontField.value.trim()
+              || "Front"
+            ]:
+              card.pergunta,
+
+
+            [
+              els.backField.value.trim()
+              || "Back"
+            ]:
+              card.resposta
+
+          },
+
+
+          tags,
+
+
+          options:{
+
+            allowDuplicate:false,
+            duplicateScope:"deck"
+
+          }
+
+        }
+
       }
     );
 
@@ -338,45 +339,41 @@
 
 
 
-  function setGenerating(value) {
 
-    els.generateBtn.disabled =
-      value;
 
+
+
+  function setGenerating(state){
+
+    els.generateBtn.disabled = state;
 
     els.generateBtn.textContent =
-      value
-      ?
-      "Gerando…"
-      :
-      "Gerar flashcards";
+      state
+      ? "Gerando..."
+      : "Gerar flashcards";
 
   }
 
 
 
 
-  function setGenStatus(
-    message,
+
+
+  function setStatus(
+    msg,
     state
-  ) {
+  ){
 
-    els.genStatus.textContent =
-      message || "";
+    els.genStatus.textContent = msg;
 
 
-    if (state) {
+    if(state){
 
-      els.genStatus.dataset.state =
-        state;
+      els.genStatus.dataset.state = state;
 
-    }
+    }else{
 
-    else {
-
-      els.genStatus.removeAttribute(
-        "data-state"
-      );
+      delete els.genStatus.dataset.state;
 
     }
 
@@ -386,79 +383,120 @@
 
 
 
-  async function callGenerateApi(extra = {}) {
+
+
+
+
+
+  async function callGenerateApi(
+    extra={}
+  ){
+
 
     const payload = {
 
       resolucao:
         els.resolucao.value.trim(),
 
-
       provider:
         els.provider.value,
-
 
       api_key:
         els.apiKey.value.trim(),
 
+      instrucao:
+        els.instrucao
+        ? els.instrucao.value.trim()
+        : "",
 
-      ...extra,
+      ...extra
 
     };
 
 
 
-    const res = await fetch(
-      "/api/generate",
-      {
 
-        method:
-          "POST",
+    const response =
+      await fetch(
+        "/api/generate",
+        {
 
+          method:"POST",
 
-        headers: {
+          headers:{
+            "Content-Type":
+              "application/json"
+          },
 
-          "Content-Type":
-            "application/json",
+          body:
+            JSON.stringify(payload)
 
-        },
-
-
-        body:
-          JSON.stringify(payload),
-
-      }
-    );
+        }
+      );
 
 
 
-    const data =
-      await res.json();
 
 
 
-    if (!res.ok) {
+    const text =
+      await response.text();
+
+
+
+    let data;
+
+
+    try{
+
+      data =
+        JSON.parse(text);
+
+
+    }catch(_){
 
       throw new Error(
-        data.error ||
-        `Erro ${res.status}`
+        "O servidor retornou HTML em vez de JSON. Verifique o log do Vercel."
       );
 
     }
 
 
 
-    return data.flashcards;
-      async function generateFlashcards() {
-
-    const resolucao =
-      els.resolucao.value.trim();
 
 
-    if (resolucao.length < 20) {
+    if(!response.ok){
 
-      setGenStatus(
-        "Cole o texto completo da resolução antes de gerar.",
+      throw new Error(
+        data.error ||
+        `Erro ${response.status}`
+      );
+
+    }
+
+
+
+    return data.flashcards || [];
+
+  }
+
+
+
+
+
+
+
+
+
+  async function generateFlashcards(){
+
+
+    if(
+      els.resolucao.value.trim().length < 20
+    ){
+
+      setStatus(
+        "Cole uma resolução válida.",
         "error"
       );
 
@@ -470,42 +508,39 @@
 
     setGenerating(true);
 
-    setGenStatus(
-      "Consultando a IA…"
+    setStatus(
+      "Consultando IA..."
     );
 
 
 
-    try {
+    try{
 
-      const flashcards =
+
+      const cards =
         await callGenerateApi();
 
 
-
-      renderCards(
-        flashcards
-      );
+      renderCards(cards);
 
 
-      setGenStatus(
-        `${flashcards.length} ficha(s) gerada(s).`,
+
+      setStatus(
+        `${cards.length} ficha(s) gerada(s).`,
         "ok"
       );
 
 
 
-    } catch (err) {
+    }catch(err){
 
-
-      setGenStatus(
-        err.message ||
-        "Falha ao gerar flashcards.",
+      setStatus(
+        err.message,
         "error"
       );
 
-
-    } finally {
+    }
+    finally{
 
       setGenerating(false);
 
@@ -517,159 +552,92 @@
 
 
 
-  function collectCurrentCards() {
-
-    return Array.from(
-      els.cardsGrid.querySelectorAll(".card")
-    ).map((el) => ({
-
-      pergunta:
-        el.querySelector(".q-field")
-          .value.trim(),
-
-
-      resposta:
-        el.querySelector(".a-field")
-          .value.trim(),
-
-    }));
-
-  }
 
 
 
 
 
-  async function generateMoreFlashcards() {
+  async function generateMoreFlashcards(){
 
 
     const existentes =
       collectCurrentCards();
 
 
-    const instrucao =
-      els.morePrompt.value.trim();
+
+    els.generateMoreBtn.disabled=true;
 
 
-
-    els.generateMoreBtn.disabled =
-      true;
-
-
-    els.generateMoreBtn.textContent =
-      "Gerando mais…";
-
-
-
-    setGenStatus(
-      instrucao
-      ?
-      "Consultando a IA com sua instrução…"
-      :
-      "Consultando a IA por fichas adicionais…"
+    setStatus(
+      "Buscando novos pontos..."
     );
 
 
 
-    try {
+    try{
 
 
       const novas =
-        await callGenerateApi({
-
-          existentes,
-
-          instrucao,
-
-        });
-
-
-
-      if (novas.length === 0) {
-
-
-        setGenStatus(
-          "A IA não encontrou novas fichas relevantes.",
-          "ok"
+        await callGenerateApi(
+          {
+            existentes
+          }
         );
 
 
-      } else {
+
+      appendCards(novas);
 
 
-        appendCards(
-          novas
-        );
-
-
-        setGenStatus(
-          `${novas.length} ficha(s) nova(s) adicionada(s).`,
-          "ok"
-        );
-
-
-        // limpa o pedido depois de usar
-        els.morePrompt.value = "";
-
-
-      }
+      setStatus(
+        `${novas.length} nova(s) adicionada(s).`,
+        "ok"
+      );
 
 
 
-    } catch (err) {
+    }catch(err){
 
-
-      setGenStatus(
-        err.message ||
-        "Falha ao gerar mais flashcards.",
+      setStatus(
+        err.message,
         "error"
       );
 
+    }
+    finally{
 
-    } finally {
-
-
-      els.generateMoreBtn.disabled =
-        false;
-
-
-      els.generateMoreBtn.textContent =
-        "Gerar mais fichas";
-
+      els.generateMoreBtn.disabled=false;
 
     }
 
-
   }
 
 
 
 
 
-  function renderCards(flashcards) {
 
 
-    els.cardsGrid.innerHTML =
-      "";
 
+
+  function renderCards(cards){
+
+    els.cardsGrid.innerHTML="";
 
     els.resultsPanel.hidden =
-      flashcards.length === 0;
+      cards.length===0;
 
 
     els.drawerLabel.textContent =
-      `Fichas geradas — ${flashcards.length}`;
+      `Fichas geradas — ${cards.length}`;
 
 
-
-    flashcards.forEach((card, i) => {
-
-      els.cardsGrid.appendChild(
-        buildCardEl(card, i)
-      );
-
-    });
-
+    cards.forEach(
+      (c,i)=>
+        els.cardsGrid.appendChild(
+          buildCard(c,i)
+        )
+    );
 
   }
 
@@ -677,264 +645,136 @@
 
 
 
-  function appendCards(flashcards) {
 
 
-    const startIndex =
+
+  function appendCards(cards){
+
+
+    const start =
       els.cardsGrid.children.length;
 
 
 
-    els.resultsPanel.hidden =
-      false;
-
-
-
-    flashcards.forEach((card, i) => {
-
-
-      els.cardsGrid.appendChild(
-        buildCardEl(
-          card,
-          startIndex + i
+    cards.forEach(
+      (c,i)=>
+        els.cardsGrid.appendChild(
+          buildCard(
+            c,
+            start+i
+          )
         )
-      );
+    );
 
 
-    });
 
+    els.resultsPanel.hidden=false;
 
 
     els.drawerLabel.textContent =
       `Fichas geradas — ${els.cardsGrid.children.length}`;
 
-
   }
 
 
 
 
 
-  function buildCardEl(card, index) {
+
+
+
+
+  function buildCard(
+    card,
+    index
+  ){
 
 
     const el =
       document.createElement("article");
 
 
-    el.className =
-      "card";
+    el.className="card";
 
 
 
-    const serial =
-      document.createElement("div");
+    el.innerHTML = `
+
+      <div class="card-serial">
+        Nº ${String(index+1).padStart(2,"0")}
+        <span class="card-flag">
+          novo
+        </span>
+      </div>
 
 
-    serial.className =
-      "card-serial";
+      <label>Pergunta</label>
+
+      <textarea class="q-field">${card.pergunta}</textarea>
+
+
+      <hr class="card-divider">
+
+
+      <label>Resposta</label>
+
+      <textarea class="a-field">${card.resposta}</textarea>
+
+
+      <div class="card-footer">
+
+        <button class="btn-ghost">
+          excluir
+        </button>
+
+
+        <button class="btn-send">
+          Enviar para o Anki
+        </button>
+
+      </div>
+
+    `;
 
 
 
-    const num =
-      document.createElement("span");
+    const q =
+      el.querySelector(".q-field");
 
 
-    num.textContent =
-      `Nº ${String(index + 1).padStart(2, "0")}`;
-
+    const a =
+      el.querySelector(".a-field");
 
 
     const flag =
-      document.createElement("span");
+      el.querySelector(".card-flag");
 
 
-    flag.className =
-      "card-flag";
+    const send =
+      el.querySelector(".btn-send");
 
 
-    flag.textContent =
-      "novo";
 
+    send._sendAction =
+      ()=>sendSingleCard(
+        send,
+        flag,
+        {
+          pergunta:q.value.trim(),
+          resposta:a.value.trim()
+        }
+      );
 
 
-    serial.append(
-      num,
-      flag
-    );
 
+    send.onclick =
+      ()=>send._sendAction();
 
 
 
-    const qLabel =
-      document.createElement("label");
-
-
-    qLabel.textContent =
-      "Pergunta";
-
-
-
-    const qField =
-      document.createElement("textarea");
-
-
-    qField.className =
-      "q-field";
-
-
-    qField.rows =
-      2;
-
-
-    qField.value =
-      card.pergunta;
-
-
-
-
-    const divider =
-      document.createElement("hr");
-
-
-    divider.className =
-      "card-divider";
-
-
-
-
-    const aLabel =
-      document.createElement("label");
-
-
-    aLabel.textContent =
-      "Resposta";
-
-
-
-
-    const aField =
-      document.createElement("textarea");
-
-
-    aField.className =
-      "a-field";
-
-
-    aField.rows =
-      2;
-
-
-    aField.value =
-      card.resposta;
-
-
-
-    autoGrow(qField);
-
-    autoGrow(aField);
-
-
-
-
-    const footer =
-      document.createElement("div");
-
-
-    footer.className =
-      "card-footer";
-
-
-
-
-    const delBtn =
-      document.createElement("button");
-
-
-    delBtn.className =
-      "btn-ghost";
-
-
-    delBtn.type =
-      "button";
-
-
-    delBtn.textContent =
-      "excluir";
-
-
-
-    delBtn.onclick =
-      () => {
-
-        el.remove();
-
-        els.drawerLabel.textContent =
-          `Fichas geradas — ${els.cardsGrid.children.length}`;
-
-      };
-
-
-
-
-    const sendBtn =
-      document.createElement("button");
-
-
-    sendBtn.className =
-      "btn-send";
-
-
-    sendBtn.type =
-      "button";
-
-
-    sendBtn.textContent =
-      "Enviar para o Anki";
-
-
-
-
-    sendBtn._sendAction =
-      (opts) =>
-        sendSingleCard(
-          sendBtn,
-          flag,
-          {
-            pergunta:
-              qField.value.trim(),
-
-            resposta:
-              aField.value.trim(),
-          },
-          opts
-        );
-
-
-
-    sendBtn.onclick =
-      () =>
-        sendBtn._sendAction();
-
-
-
-
-    footer.append(
-      delBtn,
-      sendBtn
-    );
-
-
-
-    el.append(
-      serial,
-      qLabel,
-      qField,
-      divider,
-      aLabel,
-      aField,
-      footer
-    );
+    el.querySelector(".btn-ghost")
+      .onclick =
+      ()=>el.remove();
 
 
 
@@ -946,118 +786,76 @@
 
 
 
-  function autoGrow(textarea) {
-
-    const resize =
-      () => {
-
-        textarea.style.height =
-          "auto";
-
-
-        textarea.style.height =
-          `${textarea.scrollHeight}px`;
-
-      };
 
 
 
-    textarea.addEventListener(
-      "input",
-      resize
-    );
 
+  function collectCurrentCards(){
 
-    setTimeout(
-      resize,
-      0
-    );
+    return Array.from(
+      els.cardsGrid.querySelectorAll(".card")
+    ).map(el=>({
+
+      pergunta:
+        el.querySelector(".q-field").value.trim(),
+
+      resposta:
+        el.querySelector(".a-field").value.trim()
+
+    }));
 
   }
+
+
+
+
 
 
 
 
 
   async function sendSingleCard(
-    button,
-    flagEl,
-    card,
-    { sync = true } = {}
-  ) {
+    btn,
+    flag,
+    card
+  ){
+
+    try{
 
 
-    if (!card.pergunta || !card.resposta) {
+      btn.disabled=true;
 
-      alert(
-        "Pergunta e resposta não podem ficar vazias."
-      );
-
-      return;
-
-    }
+      btn.textContent =
+        "Enviando...";
 
 
-
-    button.disabled =
-      true;
-
-
-    button.textContent =
-      "Enviando…";
+      await sendCardToAnki(card);
 
 
 
-    try {
-
-
-      await sendCardToAnki(
-        card
-      );
-
-
-
-      button.textContent =
+      btn.textContent =
         "Enviado ✓";
 
 
-
-      button.dataset.sent =
-        "true";
+      btn.dataset.sent="true";
 
 
-
-      flagEl.textContent =
+      flag.textContent =
         "enviado";
 
 
-      flagEl.dataset.sent =
-        "true";
+      flag.dataset.sent="true";
 
 
 
-      if (sync) {
+    }catch(err){
 
-        triggerAnkiSync();
+      alert(err.message);
 
-      }
+    }
+    finally{
 
-
-
-    } catch (err) {
-
-
-      alert(
-        `Não foi possível enviar para o Anki: ${err.message}`
-      );
-
-
-    } finally {
-
-
-      button.disabled =
-        false;
-
+      btn.disabled=false;
 
     }
 
@@ -1067,7 +865,12 @@
 
 
 
-  async function sendAllCards() {
+
+
+
+
+
+  async function sendAllCards(){
 
     const cards =
       Array.from(
@@ -1075,18 +878,15 @@
       );
 
 
-
-    for (const card of cards) {
+    for(const card of cards){
 
       const btn =
         card.querySelector(".btn-send");
 
 
-      if (btn.dataset.sent !== "true") {
+      if(btn.dataset.sent!=="true"){
 
-        await btn._sendAction({
-          sync:false
-        });
+        await btn._sendAction();
 
       }
 
@@ -1101,38 +901,30 @@
 
 
 
-  function downloadCardsAsText() {
+
+
+
+
+  function downloadCardsAsText(){
 
 
     const cards =
-      Array.from(
-        els.cardsGrid.querySelectorAll(".card")
-      );
+      collectCurrentCards();
 
 
-    const lines =
-      cards.map((el) => {
-
-        return (
-          el.querySelector(".q-field").value.trim()
-          +
-          "\t"
-          +
-          el.querySelector(".a-field").value.trim()
-        );
-
-      });
+    const txt =
+      cards.map(
+        c=>`${c.pergunta}\t${c.resposta}`
+      )
+      .join("\n");
 
 
 
     const blob =
       new Blob(
-        [
-          lines.join("\n")
-        ],
+        [txt],
         {
-          type:
-          "text/plain;charset=utf-8"
+          type:"text/plain"
         }
       );
 
@@ -1147,20 +939,19 @@
       document.createElement("a");
 
 
-    a.href =
-      url;
+    a.href=url;
 
-
-    a.download =
-      "flashcards.txt";
-
+    a.download="flashcards.txt";
 
     a.click();
+
 
 
     URL.revokeObjectURL(url);
 
   }
+
+
 
 
 
@@ -1189,5 +980,3 @@
 
 
 })();
-
-  }
