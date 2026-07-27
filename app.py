@@ -67,13 +67,25 @@ RESOLUÇÃO DA QUESTÃO:
 
 EXISTING_BLOCK_TEMPLATE = """
 ATENÇÃO: já foram geradas as fichas abaixo a partir desta mesma resolução.
-NÃO repita a mesma pergunta (nem reformulada) para nenhuma delas. Gere apenas
-fichas NOVAS, cobrindo aspectos da resolução que essas ainda não cobrem. Se a
-resolução já foi esgotada e não sobrar nada de novo e relevante, retorne uma
-lista vazia.
+
+NÃO repita nenhuma pergunta (nem reformulada).
+
+Gere apenas fichas NOVAS.
+
+Se existir uma instrução do usuário, ela tem prioridade absoluta.
+
+Caso a instrução esteja vazia, escolha sozinho os aspectos mais importantes da
+resolução que ainda não foram transformados em flashcards.
+
+Se realmente não houver mais nada relevante para extrair, retorne uma lista vazia.
 
 FICHAS JÁ EXISTENTES:
+
 {existentes_json}
+
+INSTRUÇÃO DO USUÁRIO:
+
+{instrucao}
 """
 
 
