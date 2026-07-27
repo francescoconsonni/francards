@@ -29,7 +29,7 @@
         <summary class="panel-title">
           <span class="idx">01</span> Configuração
         </summary>
-        
+
         <div class="field-grid">
           <label class="field">
             <span>Provedor de IA</span>
@@ -89,10 +89,12 @@
       <h2 class="panel-title"><span class="idx">02</span> Resolução da questão</h2>
       <textarea id="resolucao" rows="11" placeholder="Cole aqui a resolução completa da questão — quanto mais raciocínio clínico explicado, melhores as fichas."></textarea>
       <div class="actions">
+        <button id="pasteBtn" class="btn-secondary" type="button">📋 Colar</button>
+        <button id="openEvidenceBtn" class="btn-secondary" type="button">↗ Abrir OpenEvidence</button>
         <button id="generateBtn" class="btn-primary">Gerar flashcards</button>
         <span id="genStatus" class="inline-status" role="status" aria-live="polite"></span>
       </div>
-      <p class="hint">Clicar em "Gerar flashcards" de novo substitui tudo do zero. Depois de gerar, use "Gerar mais fichas" (lá embaixo) para pedir fichas adicionais sem perder as que já existem.</p>
+      <p class="hint">Clicar em "Gerar flashcards" de novo substitui tudo do zero. Depois de gerar, use "Gerar mais fichas" (lá embaixo) para pedir fichas adicionais sem perder as que já existem. Tabelas e textos formatados colados aqui (ex: do OpenEvidence) são limpos automaticamente.</p>
     </section>
 
     <section class="panel" id="resultsPanel" hidden>
@@ -105,6 +107,19 @@
         </div>
       </div>
       <div id="cardsGrid" class="cards-grid"></div>
+
+      <div id="temasPanel" class="temas-panel" hidden>
+        <p class="temas-label">Sugestões de temas ainda não cobertos:</p>
+        <div id="temasChips" class="temas-chips"></div>
+      </div>
+
+      <div class="temas-custom">
+        <label class="field temas-custom-field">
+          <span>Ou peça fichas sobre um tema específico</span>
+          <input type="text" id="temaInput" placeholder="ex: farmacocinética do fármaco, diagnóstico diferencial…" autocomplete="off" spellcheck="false">
+        </label>
+        <button id="temaCustomBtn" class="btn-secondary" type="button">Gerar sobre esse tema</button>
+      </div>
     </section>
   </main>
 
