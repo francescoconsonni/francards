@@ -14,6 +14,12 @@
     ankiUrl: $("ankiUrl"),
     ankiApiKey: $("ankiApiKey"),
     resolucao: $("resolucao"),
+    questaoInput: $("questaoInput"),
+    resolveBtn: $("resolveBtn"),
+    resolveStatus: $("resolveStatus"),
+    resolveResultWrap: $("resolveResultWrap"),
+    resolveResult: $("resolveResult"),
+    useResolutionBtn: $("useResolutionBtn"),
     pasteBtn: $("pasteBtn"),
     openEvidenceBtn: $("openEvidenceBtn"),
     generateBtn: $("generateBtn"),
@@ -148,6 +154,60 @@
         "Não foi possível colar automaticamente (o navegador pode ter bloqueado o acesso à área de transferência). Use Ctrl+V / colar manual no campo de texto."
       );
     }
+  }
+
+  // ------------------------------------------------------------------
+  // Resolver questão com a IA
+  // ------------------------------------------------------------------
+
+  function setResolveStatus(message, state) {
+    els.resolveStatus.textContent = message || "";
+    if (state) els.resolveStatus.dataset.state = state;
+    else els.resolveStatus.removeAttribute("data-state");
+  }
+
+  async function resolveQuestion() {
+    const questao = els.questaoInput.value.trim();
+    if (questao.length < 10) {
+      setResolveStatus("Cole o enunciado da questão antes de pedir a resolução.", "error");
+      return;
+    }
+
+    els.resolveBtn.disabled = true;
+    const originalLabel = els.resolveBtn.textContent;
+    els.resolveBtn.textContent = "Resolvendo…";
+    setResolveStatus("Consultando a IA…");
+
+    try {
+      const res = await fetch("/api/resolve", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          questao,
+          provider: els.provider.value,
+          api_key: els.apiKey.value.trim(),
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || `Erro ${res.status}`);
+
+      els.resolveResult.value = data.resolucao || "";
+      els.resolveResult.dispatchEvent(new Event("input"));
+      els.resolveResultWrap.hidden = false;
+      setResolveStatus("Resolução gerada — revise abaixo antes de usar.", "ok");
+    } catch (err) {
+      setResolveStatus(err.message || "Falha ao resolver a questão.", "error");
+    } finally {
+      els.resolveBtn.disabled = false;
+      els.resolveBtn.textContent = originalLabel;
+    }
+  }
+
+  function useGeneratedResolution() {
+    const texto = els.resolveResult.value.trim();
+    if (!texto) return;
+    insertTextInResolucao(texto, { replace: true });
+    setResolveStatus("Resolução usada no campo abaixo.", "ok");
   }
 
   // ------------------------------------------------------------------
@@ -541,8 +601,11 @@
   els.openEvidenceBtn.addEventListener("click", () => {
     window.open("https://www.openevidence.com", "_blank", "noopener");
   });
+  els.resolveBtn.addEventListener("click", resolveQuestion);
+  els.useResolutionBtn.addEventListener("click", useGeneratedResolution);
 
   loadSettings();
   checkAnkiConnection();
+  autoGrow(els.resolveResult);
   els.resolucao.focus();
 })();
