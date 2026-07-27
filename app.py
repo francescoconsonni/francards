@@ -173,6 +173,7 @@ def extract_json(text: str):
 
 def call_gemini(prompt: str, api_key: str) -> str:
     last_error = "Nenhum modelo Gemini disponível respondeu."
+    hit_quota_limit = False
 
     for model in GEMINI_MODELS:
         url = GEMINI_URL.format(model=model, key=api_key)
@@ -191,6 +192,17 @@ def call_gemini(prompt: str, api_key: str) -> str:
             last_error = f"model {model} no longer available"
             continue
 
+        if resp.status_code == 429:
+            # Cota do tier gratuito esgotada para ESSE modelo — outro modelo
+            # da lista pode ter cota própria e ainda funcionar.
+            hit_quota_limit = True
+            try:
+                detail = resp.json().get("error", {}).get("message", resp.text)
+            except ValueError:
+                detail = resp.text
+            last_error = f"Gemini ({model}): {detail}"
+            continue
+
         if not resp.ok:
             try:
                 detail = resp.json().get("error", {}).get("message", resp.text)
@@ -204,6 +216,12 @@ def call_gemini(prompt: str, api_key: str) -> str:
         except (KeyError, IndexError, TypeError):
             raise RuntimeError("Não foi possível interpretar a resposta da IA.")
 
+    if hit_quota_limit:
+        raise RuntimeError(
+            "Todos os modelos Gemini disponíveis atingiram o limite de uso gratuito no "
+            "momento. Aguarde alguns instantes e tente de novo, ou troque para o "
+            "DeepSeek na seção Configuração. Detalhe: " + last_error
+        )
     raise RuntimeError(last_error)
 
 
