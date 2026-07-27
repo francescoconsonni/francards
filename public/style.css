@@ -201,6 +201,34 @@ textarea:focus {
   margin: 0.8rem 0 0;
 }
 
+.resolve-details {
+  margin-bottom: 1.1rem;
+}
+
+.resolve-body {
+  margin-top: 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.9rem;
+}
+
+.resolve-body .hint { margin: 0; }
+
+.resolve-result-wrap {
+  margin-top: 0.2rem;
+  padding-top: 0.9rem;
+  border-top: 1px dashed var(--line);
+  display: flex;
+  flex-direction: column;
+  gap: 0.9rem;
+}
+
+#questaoInput,
+#resolveResult {
+  resize: vertical;
+  line-height: 1.5;
+}
+
 #resolucao {
   resize: vertical;
   min-height: 220px;
