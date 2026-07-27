@@ -608,4 +608,12 @@
   checkAnkiConnection();
   autoGrow(els.resolveResult);
   els.resolucao.focus();
+
+  if ("serviceWorker" in navigator) {
+    window.addEventListener("load", () => {
+      navigator.serviceWorker.register("/sw.js").catch(() => {
+        /* PWA é um extra — se falhar, o site continua funcionando normalmente */
+      });
+    });
+  }
 })();
