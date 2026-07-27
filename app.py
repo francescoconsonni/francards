@@ -95,6 +95,30 @@ nada relacionado, retorne uma lista vazia em "flashcards".
 """
 
 
+RESOLVE_PROMPT_TEMPLATE = """Você é um médico especialista que resolve questões de prova \
+para estudantes de residência médica.
+
+Sua tarefa: ler a QUESTÃO abaixo (enunciado e alternativas, se houver) e escrever uma
+RESOLUÇÃO completa e didática, como se estivesse explicando o raciocínio clínico passo a
+passo para um aluno que vai usar esse texto depois para criar flashcards de estudo.
+
+REGRAS:
+1. Diga claramente qual é a alternativa/resposta correta, quando houver alternativas.
+2. Explique o raciocínio clínico completo: quais achados da questão levam à conclusão,
+   por que a conduta/resposta certa é essa, valores de referência citados.
+3. Quando houver alternativas erradas, explique BREVEMENTE por que cada uma está
+   incorreta — isso ajuda a extrair mais flashcards depois.
+4. Seja específico e explícito, evite frases genéricas.
+5. Responda em texto corrido (sem JSON, sem títulos em markdown), como uma resolução de
+   questão normal, pronta para ser colada em um campo de texto.
+
+QUESTÃO:
+\"\"\"
+{questao}
+\"\"\"
+"""
+
+
 def build_prompt(resolucao: str, existentes=None, tema=None) -> str:
     prompt = PROMPT_TEMPLATE.format(resolucao=resolucao.strip())
     if existentes:
@@ -220,6 +244,45 @@ def call_deepseek(prompt: str, api_key: str) -> str:
 @app.route("/")
 def index():
     return render_template("index.html")
+
+
+@app.route("/api/resolve", methods=["POST"])
+def api_resolve():
+    payload = request.get_json(silent=True) or {}
+
+    questao = (payload.get("questao") or "").strip()
+    provider = (payload.get("provider") or "gemini").strip().lower()
+    api_key = (payload.get("api_key") or "").strip()
+
+    if len(questao) < 10:
+        return jsonify({"error": "Cole o enunciado da questão antes de pedir a resolução."}), 400
+
+    if not api_key:
+        env_var = "GEMINI_API_KEY" if provider == "gemini" else "DEEPSEEK_API_KEY"
+        api_key = os.environ.get(env_var, "")
+
+    if not api_key:
+        return jsonify({"error": "Informe uma chave de API válida (ou configure uma fixa no servidor)."}), 400
+
+    prompt = RESOLVE_PROMPT_TEMPLATE.format(questao=questao)
+
+    try:
+        if provider == "deepseek":
+            raw_text = call_deepseek(prompt, api_key)
+        else:
+            raw_text = call_gemini(prompt, api_key)
+    except RuntimeError as exc:
+        return jsonify({"error": str(exc)}), 502
+
+    resolucao = raw_text.strip()
+    # Remove eventuais cercas de markdown que a IA às vezes adiciona por hábito.
+    resolucao = re.sub(r"^```[a-zA-Z]*\n?", "", resolucao)
+    resolucao = re.sub(r"\n?```$", "", resolucao).strip()
+
+    if not resolucao:
+        return jsonify({"error": "A IA não retornou nenhum texto de resolução."}), 502
+
+    return jsonify({"resolucao": resolucao})
 
 
 @app.route("/api/generate", methods=["POST"])
