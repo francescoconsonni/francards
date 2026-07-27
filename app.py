@@ -137,3 +137,135 @@ def extract_json(text: str):
         if match:
             result = _try_loads(match.group(0))
             if result is not None:
+                return result
+
+    return None
+
+
+# ---------------------------------------------------------------------------
+# Chamadas às IAs
+# ---------------------------------------------------------------------------
+
+
+def call_gemini(prompt: str, api_key: str) -> str:
+    last_error = "Nenhum modelo Gemini disponível respondeu."
+
+    for model in GEMINI_MODELS:
+        url = GEMINI_URL.format(model=model, key=api_key)
+        try:
+            resp = requests.post(
+                url,
+                json={"contents": [{"parts": [{"text": prompt}]}]},
+                timeout=55,
+            )
+        except requests.RequestException as exc:
+            last_error = f"Falha de conexão com o Gemini: {exc}"
+            continue
+
+        if resp.status_code == 404:
+            # A Google aposentou esse modelo — tenta o próximo da lista.
+            last_error = f"model {model} no longer available"
+            continue
+
+        if not resp.ok:
+            try:
+                detail = resp.json().get("error", {}).get("message", resp.text)
+            except ValueError:
+                detail = resp.text
+            raise RuntimeError(f"A API de IA recusou a requisição (Gemini {model}): {detail}")
+
+        data = resp.json()
+        try:
+            return data["candidates"][0]["content"]["parts"][0]["text"]
+        except (KeyError, IndexError, TypeError):
+            raise RuntimeError("Não foi possível interpretar a resposta da IA.")
+
+    raise RuntimeError(last_error)
+
+
+def call_deepseek(prompt: str, api_key: str) -> str:
+    try:
+        resp = requests.post(
+            DEEPSEEK_URL,
+            headers={"Authorization": f"Bearer {api_key}"},
+            json={
+                "model": "deepseek-chat",
+                "messages": [{"role": "user", "content": prompt}],
+                "temperature": 0.3,
+            },
+            timeout=55,
+        )
+    except requests.RequestException as exc:
+        raise RuntimeError(f"Falha de conexão com o DeepSeek: {exc}")
+
+    if not resp.ok:
+        try:
+            detail = resp.json().get("error", {}).get("message", resp.text)
+        except ValueError:
+            detail = resp.text
+        raise RuntimeError(f"A API de IA recusou a requisição (DeepSeek): {detail}")
+
+    data = resp.json()
+    try:
+        return data["choices"][0]["message"]["content"]
+    except (KeyError, IndexError, TypeError):
+        raise RuntimeError("Não foi possível interpretar a resposta da IA.")
+
+
+# ---------------------------------------------------------------------------
+# Rotas
+# ---------------------------------------------------------------------------
+
+
+@app.route("/")
+def index():
+    return render_template("index.html")
+
+
+@app.route("/api/generate", methods=["POST"])
+def api_generate():
+    payload = request.get_json(silent=True) or {}
+
+    resolucao = (payload.get("resolucao") or "").strip()
+    provider = (payload.get("provider") or "gemini").strip().lower()
+    api_key = (payload.get("api_key") or "").strip()
+    existentes = payload.get("existentes")
+    tema = payload.get("tema")
+
+    if len(resolucao) < 20:
+        return jsonify({"error": "Cole o texto completo da resolução antes de gerar."}), 400
+
+    if not api_key:
+        env_var = "GEMINI_API_KEY" if provider == "gemini" else "DEEPSEEK_API_KEY"
+        api_key = os.environ.get(env_var, "")
+
+    if not api_key:
+        return jsonify({"error": "Informe uma chave de API válida (ou configure uma fixa no servidor)."}), 400
+
+    prompt = build_prompt(resolucao, existentes=existentes, tema=tema)
+
+    try:
+        if provider == "deepseek":
+            raw_text = call_deepseek(prompt, api_key)
+        else:
+            raw_text = call_gemini(prompt, api_key)
+    except RuntimeError as exc:
+        return jsonify({"error": str(exc)}), 502
+
+    parsed = extract_json(raw_text)
+    if not isinstance(parsed, dict):
+        return jsonify({"error": "Não foi possível interpretar a resposta da IA."}), 502
+
+    flashcards = parsed.get("flashcards", [])
+    sugestoes_tema = parsed.get("sugestoes_tema", [])
+
+    if not isinstance(flashcards, list):
+        flashcards = []
+    if not isinstance(sugestoes_tema, list):
+        sugestoes_tema = []
+
+    return jsonify({"flashcards": flashcards, "sugestoes_tema": sugestoes_tema})
+
+
+if __name__ == "__main__":
+    app.run(debug=True)
