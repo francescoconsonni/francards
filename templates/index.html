@@ -1,75 +1,52 @@
 <!DOCTYPE html>
 <html lang="pt-BR">
-
 <head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
-<meta charset="UTF-8">
+  <title>FranCards — Flashcards Médicos com IA</title>
 
-<meta name="viewport"
-      content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 
-<title>Francards</title>
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:wght@500;600&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
 
-
-<link rel="preconnect"
-      href="https://fonts.googleapis.com">
-
-<link rel="preconnect"
-      href="https://fonts.gstatic.com"
-      crossorigin>
-
-
-<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600&family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap"
-      rel="stylesheet">
-
-
-<link rel="stylesheet"
-      href="/style.css">
-
+  <link rel="stylesheet" href="/style.css">
 </head>
-
 
 <body>
 
-
-<div class="rail"
-     aria-hidden="true">
-
-GERADOR&nbsp;DE&nbsp;FLASHCARDS
-
+<div class="rail">
+  FRAN — FLASHCARDS MÉDICOS — IA — ANKI
 </div>
 
 
-
-<div class="page">
-
+<main class="page">
 
 
 <header class="masthead">
 
-
-<span class="tab">
-FOCO CG 2027
-</span>
-
-
-<h1>
-Gerador&nbsp;de Flashcards
-</h1>
+  <span class="tab">
+    Medicina + IA
+  </span>
 
 
-<p class="sub">
-Cole a resolução de uma questão, a IA extrai o que vale memorizar e você manda direto pro Anki no formato de flashcard.
-</p>
+  <h1>
+    FranCards
+  </h1>
 
 
-<span id="ankiStatus"
-      class="status-pill"
-      data-state="checking">
+  <p class="sub">
+    Transforme resoluções de questões em flashcards clínicos de alta qualidade para Anki.
+  </p>
 
-verificando AnkiConnect…
 
-</span>
+  <span
+    id="ankiStatus"
+    class="status-pill"
+  >
+    verificando AnkiConnect...
+  </span>
 
 
 </header>
@@ -77,114 +54,56 @@ verificando AnkiConnect…
 
 
 
-<main>
+<section class="panel">
 
 
-
-<section class="panel"
-         id="configPanel">
-
-
-<details class="config-details">
-
-
-<summary class="panel-title">
-
-<span class="idx">
-01
-</span>
-
-Configuração
-
-</summary>
+<h2 class="panel-title">
+  <span class="idx">01</span>
+  Configuração da IA
+</h2>
 
 
 
 <div class="field-grid">
 
 
-<label class="field">
+<div class="field">
 
-<span>
-Provedor de IA
-</span>
+<label for="provider">
+Provedor
+</label>
 
 
 <select id="provider">
 
 <option value="gemini">
-Gemini
+Google Gemini
 </option>
 
 
 <option value="deepseek">
-Deepseek
+DeepSeek
 </option>
+
 
 </select>
 
+</div>
+
+
+
+
+<div class="field">
+
+<label for="modelName">
+Modelo Anki
 </label>
-
-
-
-
-
-<label class="field">
-
-<span>
-Chave de API
-</span>
 
 
 <input
-type="password"
-id="apiKey"
-placeholder="cole sua chave aqui"
-autocomplete="off"
-spellcheck="false">
-
-</label>
-
-
-
-
-
-<label class="field">
-
-<span>
-Baralho no Anki
-</span>
-
-
-<input
-type="text"
-id="deckName"
-value="Flashcards Automáticos"
-autocomplete="off"
-spellcheck="false">
-
-</label>
-
-
-
-
-
-<label class="field">
-
-<span>
-Tags (separadas por espaço)
-</span>
-
-
-<input
-type="text"
-id="tags"
-placeholder="ex: cardio residencia"
-autocomplete="off"
-spellcheck="false">
-
-</label>
-
+id="modelName"
+value="Basic"
+>
 
 
 </div>
@@ -193,116 +112,67 @@ spellcheck="false">
 
 
 
-<details class="advanced">
+<div class="field">
+
+<label for="apiKey">
+Chave da API
+</label>
+
+
+<input
+id="apiKey"
+type="password"
+placeholder="Cole sua chave"
+>
+
+
+</div>
+
+
+</div>
+
+
+
+<details class="advanced config-details">
 
 
 <summary>
-Avançado — modelo de nota e endereço do AnkiConnect
+Configurações avançadas
 </summary>
-
 
 
 
 <div class="field-grid">
 
 
+<div class="field">
 
-<label class="field">
-
-<span>
-Modelo de nota
-</span>
-
-
-<input
-type="text"
-id="modelName"
-value="Basic"
-autocomplete="off"
-spellcheck="false">
-
+<label for="deckName">
+Baralho Anki
 </label>
 
 
-
-
-
-<label class="field">
-
-<span>
-Campo da frente
-</span>
-
-
 <input
-type="text"
-id="frontField"
-value="Front"
-autocomplete="off"
-spellcheck="false">
+id="deckName"
+value="Medicina"
+>
 
+
+</div>
+
+
+
+<div class="field">
+
+<label for="tags">
+Tags
 </label>
 
 
-
-
-
-<label class="field">
-
-<span>
-Campo do verso
-</span>
-
-
 <input
-type="text"
-id="backField"
-value="Back"
-autocomplete="off"
-spellcheck="false">
-
-</label>
-
-
-
-
-
-<label class="field">
-
-<span>
-Endereço do AnkiConnect
-</span>
-
-
-<input
-type="text"
-id="ankiUrl"
-value="https://jarvis-lenovo.tail5a31ce.ts.net/"
-autocomplete="off"
-spellcheck="false">
-
-</label>
-
-
-
-
-
-<label class="field">
-
-<span>
-Chave do AnkiConnect
-</span>
-
-
-<input
-type="password"
-id="ankiApiKey"
-placeholder="deixe em branco se não usar"
-autocomplete="off"
-spellcheck="false">
-
-</label>
-
+id="tags"
+placeholder="ex: cardio clínica"
+>
 
 
 </div>
@@ -310,15 +180,83 @@ spellcheck="false">
 
 
 
+<div class="field">
 
-<p class="hint">
-
-Deixe o padrão se você acessa esta página pelo mesmo computador onde o Anki está aberto.
-
-</p>
+<label for="frontField">
+Campo pergunta
+</label>
 
 
-</details>
+<input
+id="frontField"
+value="Front"
+>
+
+
+</div>
+
+
+
+
+<div class="field">
+
+<label for="backField">
+Campo resposta
+</label>
+
+
+<input
+id="backField"
+value="Back"
+>
+
+
+</div>
+
+
+</div>
+
+
+
+<div class="field-grid">
+
+
+<div class="field">
+
+<label for="ankiUrl">
+URL AnkiConnect
+</label>
+
+
+<input
+id="ankiUrl"
+value="http://127.0.0.1:8765"
+>
+
+
+</div>
+
+
+
+
+<div class="field">
+
+<label for="ankiApiKey">
+Chave AnkiConnect
+</label>
+
+
+<input
+id="ankiApiKey"
+type="password"
+>
+
+
+</div>
+
+
+
+</div>
 
 
 </details>
@@ -330,28 +268,51 @@ Deixe o padrão se você acessa esta página pelo mesmo computador onde o Anki e
 
 
 
-<section class="panel"
-         id="inputPanel">
+
+
+<section class="panel">
 
 
 <h2 class="panel-title">
-
-<span class="idx">
-02
-</span>
-
+<span class="idx">02</span>
 Resolução da questão
-
 </h2>
 
 
 
+<div class="field">
+
+<label for="resolucao">
+Cole a resolução completa
+</label>
+
 
 <textarea
 id="resolucao"
-rows="11"
-placeholder="Cole aqui a resolução completa da questão — quanto mais raciocínio clínico explicado, melhores as fichas.">
-</textarea>
+placeholder="Cole aqui a resolução da questão..."
+></textarea>
+
+
+</div>
+
+
+
+<div class="field" style="margin-top:1rem;">
+
+
+<label for="instrucao">
+Orientação adicional (opcional)
+</label>
+
+
+<input
+id="instrucao"
+placeholder="Ex: foque nas contraindicações e tratamento"
+>
+
+
+</div>
+
 
 
 
@@ -361,10 +322,20 @@ placeholder="Cole aqui a resolução completa da questão — quanto mais racioc
 
 <button
 id="generateBtn"
-class="btn-primary">
-
+class="btn-primary"
+type="button"
+>
 Gerar flashcards
+</button>
 
+
+
+<button
+id="generateMoreBtn"
+class="btn-secondary"
+type="button"
+>
+Gerar mais fichas
 </button>
 
 
@@ -372,29 +343,28 @@ Gerar flashcards
 <span
 id="genStatus"
 class="inline-status"
-role="status"
-aria-live="polite">
-
-</span>
+></span>
 
 
 
 </div>
 
 
-
-
-<p class="hint">
-
-Clicar em "Gerar flashcards" de novo substitui tudo do zero.
-
-</p>
-
-
 </section>
-<section class="panel"
-         id="resultsPanel"
-         hidden>
+
+
+
+
+
+
+
+
+
+<section
+id="resultsPanel"
+class="panel"
+hidden
+>
 
 
 <div class="results-header">
@@ -414,39 +384,29 @@ Fichas geradas
 
 
 
+
 <div class="results-buttons">
 
 
 <button
-id="generateMoreBtn"
-class="btn-secondary">
-
-Gerar mais fichas
-
+id="sendAllBtn"
+class="btn-secondary"
+type="button"
+>
+Enviar todas para o Anki
 </button>
 
 
 
 <button
 id="downloadBtn"
-class="btn-secondary">
-
-Baixar fichas (.txt)
-
+class="btn-secondary"
+type="button"
+>
+Baixar TXT
 </button>
 
 
-
-<button
-id="sendAllBtn"
-class="btn-secondary">
-
-Enviar todas para o Anki
-
-</button>
-
-
-
 </div>
 
 
@@ -456,42 +416,10 @@ Enviar todas para o Anki
 
 
 
-<!-- NOVA ÁREA DE CONTINUAÇÃO DO ESTUDO -->
-
-<div class="more-study">
-
-
-<label for="morePrompt">
-
-Continuar estudando
-
-</label>
-
-
-<input
-id="morePrompt"
-type="text"
-placeholder="Ex.: faça mais fichas sobre tratamento, diagnóstico diferencial ou pegadinhas de prova">
-
-
-<p class="hint">
-
-Peça à IA para aprofundar um tema específico sem perder as fichas já criadas.
-
-</p>
-
-
-</div>
-
-
-
-
-
-<div id="cardsGrid"
-     class="cards-grid">
-
-</div>
-
+<div
+id="cardsGrid"
+class="cards-grid"
+></div>
 
 
 </section>
@@ -500,37 +428,22 @@ Peça à IA para aprofundar um tema específico sem perder as fichas já criadas
 
 
 
-</main>
-
-
-
 
 
 <footer>
 
-
-<p>
-
-As fichas vão do seu navegador direto para o AnkiConnect — a resolução passa pelo servidor apenas para chamar a IA, e nada é armazenado.
-
-</p>
-
+FranCards — geração de flashcards médicos com IA.
 
 </footer>
 
 
 
-
-</div>
-
-
+</main>
 
 
 
 <script src="/script.js"></script>
 
-
 </body>
-
 
 </html>
