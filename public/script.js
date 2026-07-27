@@ -303,4 +303,246 @@
     try {
       const extra = { existentes };
       if (tema) extra.tema = tema;
-      const { flashcards: novas, sugestoesTema } =
+      const { flashcards: novas, sugestoesTema } = await callGenerateApi(extra);
+
+      if (novas.length === 0) {
+        setGenStatus("A IA não encontrou nada de novo para extrair desta resolução.", "ok");
+      } else {
+        appendCards(novas);
+        setGenStatus(`${novas.length} ficha(s) nova(s) adicionada(s).`, "ok");
+      }
+      renderTemaChips(sugestoesTema);
+    } catch (err) {
+      setGenStatus(err.message || "Falha ao gerar mais flashcards.", "error");
+    } finally {
+      button.disabled = false;
+      button.textContent = originalLabel;
+    }
+  }
+
+  // ------------------------------------------------------------------
+  // Sugestões de tema (chips) e tema livre
+  // ------------------------------------------------------------------
+
+  function renderTemaChips(temas) {
+    els.temasChips.innerHTML = "";
+    els.temasPanel.hidden = !temas || temas.length === 0;
+
+    (temas || []).forEach((tema) => {
+      const chip = document.createElement("button");
+      chip.type = "button";
+      chip.textContent = tema;
+      chip.addEventListener("click", () => {
+        const original = chip.textContent;
+        generateMoreFlashcards(tema, { button: chip, originalLabel: original });
+      });
+      els.temasChips.appendChild(chip);
+    });
+  }
+
+  function handleTemaCustomSubmit() {
+    const tema = els.temaInput.value.trim();
+    if (!tema) {
+      setGenStatus("Digite um tema antes de gerar.", "error");
+      return;
+    }
+    generateMoreFlashcards(tema, {
+      button: els.temaCustomBtn,
+      originalLabel: "Gerar sobre esse tema",
+    });
+  }
+
+  // ------------------------------------------------------------------
+  // Renderização das fichas
+  // ------------------------------------------------------------------
+
+  function renderCards(flashcards) {
+    els.cardsGrid.innerHTML = "";
+    els.resultsPanel.hidden = flashcards.length === 0;
+    els.drawerLabel.textContent = `Fichas geradas — ${flashcards.length}`;
+
+    flashcards.forEach((card, i) => {
+      els.cardsGrid.appendChild(buildCardEl(card, i));
+    });
+  }
+
+  function appendCards(flashcards) {
+    const startIndex = els.cardsGrid.children.length;
+    els.resultsPanel.hidden = false;
+    flashcards.forEach((card, i) => {
+      els.cardsGrid.appendChild(buildCardEl(card, startIndex + i));
+    });
+    els.drawerLabel.textContent = `Fichas geradas — ${els.cardsGrid.children.length}`;
+  }
+
+  function buildCardEl(card, index) {
+    const el = document.createElement("article");
+    el.className = "card";
+
+    const serial = document.createElement("div");
+    serial.className = "card-serial";
+    const num = document.createElement("span");
+    num.textContent = `Nº ${String(index + 1).padStart(2, "0")}`;
+    const flag = document.createElement("span");
+    flag.className = "card-flag";
+    flag.textContent = "novo";
+    serial.append(num, flag);
+
+    const qLabel = document.createElement("label");
+    qLabel.textContent = "Pergunta";
+    const qField = document.createElement("textarea");
+    qField.className = "q-field";
+    qField.rows = 2;
+    qField.value = card.pergunta;
+    autoGrow(qField);
+
+    const divider = document.createElement("hr");
+    divider.className = "card-divider";
+
+    const aLabel = document.createElement("label");
+    aLabel.textContent = "Resposta";
+    const aField = document.createElement("textarea");
+    aField.className = "a-field";
+    aField.rows = 2;
+    aField.value = card.resposta;
+    autoGrow(aField);
+
+    const footer = document.createElement("div");
+    footer.className = "card-footer";
+
+    const delBtn = document.createElement("button");
+    delBtn.className = "btn-ghost";
+    delBtn.type = "button";
+    delBtn.textContent = "excluir";
+    delBtn.addEventListener("click", () => {
+      el.remove();
+      els.drawerLabel.textContent = `Fichas geradas — ${els.cardsGrid.children.length}`;
+    });
+
+    const sendBtn = document.createElement("button");
+    sendBtn.className = "btn-send";
+    sendBtn.type = "button";
+    sendBtn.textContent = "Enviar para o Anki";
+
+    sendBtn._sendAction = (opts) =>
+      sendSingleCard(sendBtn, flag, { pergunta: qField.value.trim(), resposta: aField.value.trim() }, opts);
+
+    sendBtn.addEventListener("click", () => sendBtn._sendAction());
+
+    footer.append(delBtn, sendBtn);
+    el.append(serial, qLabel, qField, divider, aLabel, aField, footer);
+    return el;
+  }
+
+  function autoGrow(textarea) {
+    const resize = () => {
+      textarea.style.height = "auto";
+      textarea.style.height = `${textarea.scrollHeight}px`;
+    };
+    textarea.addEventListener("input", resize);
+    setTimeout(resize, 0);
+  }
+
+  async function sendSingleCard(button, flagEl, card, { sync = true } = {}) {
+    if (!card.pergunta || !card.resposta) {
+      alert("Pergunta e resposta não podem ficar vazias.");
+      return;
+    }
+    button.disabled = true;
+    const original = button.textContent;
+    button.textContent = "Enviando…";
+
+    try {
+      await sendCardToAnki(card);
+      button.textContent = "Enviado ✓";
+      button.dataset.sent = "true";
+      flagEl.textContent = "enviado";
+      flagEl.dataset.sent = "true";
+      if (sync) triggerAnkiSync();
+    } catch (err) {
+      button.textContent = original;
+      const msg = String(err.message || err);
+      if (/duplicate/i.test(msg)) {
+        alert("Este cartão já existe no baralho (duplicado) — não foi enviado novamente.");
+      } else {
+        alert(`Não foi possível enviar para o Anki: ${msg}`);
+      }
+    } finally {
+      button.disabled = false;
+    }
+  }
+
+  async function sendAllCards() {
+    const cardEls = Array.from(els.cardsGrid.querySelectorAll(".card"));
+    const pending = cardEls.filter((el) => {
+      const btn = el.querySelector(".btn-send");
+      return btn.dataset.sent !== "true";
+    });
+
+    if (pending.length === 0) {
+      alert("Todas as fichas já foram enviadas.");
+      return;
+    }
+
+    els.sendAllBtn.disabled = true;
+    els.sendAllBtn.textContent = `Enviando 0/${pending.length}…`;
+
+    let done = 0;
+    for (const el of pending) {
+      const btn = el.querySelector(".btn-send");
+      await btn._sendAction({ sync: false });
+      done += 1;
+      els.sendAllBtn.textContent = `Enviando ${done}/${pending.length}…`;
+    }
+
+    await triggerAnkiSync();
+
+    els.sendAllBtn.textContent = "Enviar todas para o Anki";
+    els.sendAllBtn.disabled = false;
+  }
+
+  function downloadCardsAsText() {
+    const cardEls = Array.from(els.cardsGrid.querySelectorAll(".card"));
+    if (cardEls.length === 0) {
+      alert("Não há fichas geradas para baixar.");
+      return;
+    }
+
+    const lines = cardEls.map((el) => {
+      const pergunta = el.querySelector(".q-field").value.trim().replace(/\t/g, " ");
+      const resposta = el.querySelector(".a-field").value.trim().replace(/\t/g, " ");
+      return `${pergunta}\t${resposta}`;
+    });
+
+    const blob = new Blob([lines.join("\n")], { type: "text/plain;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    const stamp = new Date().toISOString().slice(0, 19).replace(/[:T]/g, "-");
+    a.href = url;
+    a.download = `fichas-${stamp}.txt`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  }
+
+  els.generateBtn.addEventListener("click", generateFlashcards);
+  els.generateMoreBtn.addEventListener("click", () => generateMoreFlashcards());
+  els.sendAllBtn.addEventListener("click", sendAllCards);
+  els.downloadBtn.addEventListener("click", downloadCardsAsText);
+  els.pasteBtn.addEventListener("click", pasteFromClipboard);
+  els.temaCustomBtn.addEventListener("click", handleTemaCustomSubmit);
+  els.temaInput.addEventListener("keydown", (e) => {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      handleTemaCustomSubmit();
+    }
+  });
+  els.openEvidenceBtn.addEventListener("click", () => {
+    window.open("https://www.openevidence.com", "_blank", "noopener");
+  });
+
+  loadSettings();
+  checkAnkiConnection();
+  els.resolucao.focus();
+})();
