@@ -12,7 +12,7 @@ app = Flask(__name__, static_folder="public", static_url_path="")
 
 # A Google aposenta modelos do Gemini com frequência. Tentamos o mais atual
 # primeiro e, se ele não existir mais (404), caímos para o próximo da lista.
-GEMINI_MODELS = ["gemini-3.6-flash", "gemini-2.5-flash", "gemini-flash-latest", "gemini-3.5-flash-lite"]
+GEMINI_MODELS = ["gemini-3.6-flash", "gemini-2.5-flash", "gemini-flash-latest"]
 GEMINI_URL = (
     "https://generativelanguage.googleapis.com/v1beta/models/"
     "{model}:generateContent?key={key}"
@@ -53,18 +53,9 @@ EXEMPLOS DO ESTILO ESPERADO (tema diferente do texto abaixo, apenas para calibra
 
 FORMATO DE SAÍDA — responda APENAS com um JSON válido, sem markdown, sem texto antes ou
 depois, exatamente neste formato:
-{{
-  "flashcards": [
-    {{"pergunta": "...", "resposta": "..."}}
-  ],
-  "sugestoes_tema": ["...", "..."]
-}}
-
-Em "sugestoes_tema", liste de 2 a 5 aspectos ou subtemas relacionados a esta
-resolução que AINDA NÃO foram cobertos pelas fichas geradas acima, mas que
-poderiam virar boas fichas adicionais (frases curtas, tipo "farmacocinética
-do fármaco X" ou "diagnósticos diferenciais de Y"). Se não houver nenhum
-aspecto relevante adicional, retorne uma lista vazia em "sugestoes_tema".
+[
+  {{"pergunta": "...", "resposta": "..."}}
+]
 
 RESOLUÇÃO DA QUESTÃO:
 \"\"\"
@@ -73,60 +64,8 @@ RESOLUÇÃO DA QUESTÃO:
 """
 
 
-EXISTING_BLOCK_TEMPLATE = """
-ATENÇÃO: já foram geradas as fichas abaixo a partir desta mesma resolução.
-NÃO repita a mesma pergunta (nem reformulada) para nenhuma delas. Gere apenas
-fichas NOVAS, cobrindo aspectos da resolução que essas ainda não cobrem. Se a
-resolução já foi esgotada e não sobrar nada de novo e relevante, retorne uma
-lista vazia em "flashcards".
-
-FICHAS JÁ EXISTENTES:
-{existentes_json}
-"""
-
-FOCO_BLOCK_TEMPLATE = """
-O usuário pediu fichas adicionais focando especificamente neste tema/aspecto:
-"{tema}"
-
-Gere as fichas priorizando esse foco, mas sempre dentro do conteúdo da
-resolução acima. Se a resolução não tiver informação suficiente sobre esse
-tema específico, extraia o que for possível relacionado a ele; se não houver
-nada relacionado, retorne uma lista vazia em "flashcards".
-"""
-
-
-RESOLVE_PROMPT_TEMPLATE = """Você é um médico especialista que resolve questões de prova \
-para estudantes de residência médica.
-
-Sua tarefa: ler a QUESTÃO abaixo (enunciado e alternativas, se houver) e escrever uma
-RESOLUÇÃO completa e didática, como se estivesse explicando o raciocínio clínico passo a
-passo para um aluno que vai usar esse texto depois para criar flashcards de estudo.
-
-REGRAS:
-1. Diga claramente qual é a alternativa/resposta correta, quando houver alternativas.
-2. Explique o raciocínio clínico completo: quais achados da questão levam à conclusão,
-   por que a conduta/resposta certa é essa, valores de referência citados.
-3. Quando houver alternativas erradas, explique BREVEMENTE por que cada uma está
-   incorreta — isso ajuda a extrair mais flashcards depois.
-4. Seja específico e explícito, evite frases genéricas.
-5. Responda em texto corrido (sem JSON, sem títulos em markdown), como uma resolução de
-   questão normal, pronta para ser colada em um campo de texto.
-
-QUESTÃO:
-\"\"\"
-{questao}
-\"\"\"
-"""
-
-
-def build_prompt(resolucao: str, existentes=None, tema=None) -> str:
-    prompt = PROMPT_TEMPLATE.format(resolucao=resolucao.strip())
-    if existentes:
-        existentes_json = json.dumps(existentes, ensure_ascii=False, indent=2)
-        prompt += EXISTING_BLOCK_TEMPLATE.format(existentes_json=existentes_json)
-    if tema:
-        prompt += FOCO_BLOCK_TEMPLATE.format(tema=tema.strip())
-    return prompt
+def build_prompt(resolucao: str) -> str:
+    return PROMPT_TEMPLATE.format(resolucao=resolucao.strip())
 
 
 # ---------------------------------------------------------------------------
@@ -134,124 +73,118 @@ def build_prompt(resolucao: str, existentes=None, tema=None) -> str:
 # ---------------------------------------------------------------------------
 
 
-def extract_json(text: str):
-    """Extrai um valor JSON (objeto ou array) de um texto que pode vir com
-    cercas de markdown, preâmbulo ou sufixo indesejado."""
+def extract_json_array(text: str):
+    """Extrai um array JSON de um texto que pode vir com cercas de markdown,
+    preâmbulo ou sufixo indesejado."""
     cleaned = text.strip()
     cleaned = re.sub(r"^```(json)?", "", cleaned.strip(), flags=re.IGNORECASE).strip()
     cleaned = re.sub(r"```$", "", cleaned.strip()).strip()
 
-    def _try_loads(s):
-        try:
-            return json.loads(s)
-        except json.JSONDecodeError:
-            try:
-                # Respostas de IA às vezes trazem quebras de linha "cruas"
-                # dentro de strings, o que o parser estrito do JSON rejeita.
-                return json.loads(s, strict=False)
-            except json.JSONDecodeError:
-                return None
+    match = re.search(r"\[.*\]", cleaned, re.DOTALL)
+    if match:
+        cleaned = match.group(0)
 
-    result = _try_loads(cleaned)
-    if result is not None:
-        return result
+    try:
+        return json.loads(cleaned)
+    except json.JSONDecodeError:
+        # Respostas de IA às vezes trazem quebras de linha "cruas" dentro de
+        # strings, o que o parser estrito do JSON rejeita. strict=False
+        # aceita esses caracteres de controle sem quebrar o restante.
+        return json.loads(cleaned, strict=False)
 
-    for pattern in (r"\{.*\}", r"\[.*\]"):
-        match = re.search(pattern, cleaned, re.DOTALL)
-        if match:
-            result = _try_loads(match.group(0))
-            if result is not None:
-                return result
 
-    return None
+def normalize_flashcards(raw) -> list:
+    """Aceita tanto uma lista quanto um dict com uma lista dentro, e devolve
+    apenas os cards com pergunta e resposta não vazias."""
+    if isinstance(raw, dict):
+        candidate = None
+        for value in raw.values():
+            if isinstance(value, list):
+                candidate = value
+                break
+        raw = candidate if candidate is not None else []
+
+    if not isinstance(raw, list):
+        raw = []
+
+    cleaned = []
+    for card in raw:
+        if not isinstance(card, dict):
+            continue
+        pergunta = str(card.get("pergunta", "")).strip()
+        resposta = str(card.get("resposta", "")).strip()
+        if pergunta and resposta:
+            cleaned.append({"pergunta": pergunta, "resposta": resposta})
+    return cleaned
 
 
 # ---------------------------------------------------------------------------
-# Chamadas às IAs
+# Chamadas às APIs de IA
 # ---------------------------------------------------------------------------
 
 
-def call_gemini(prompt: str, api_key: str) -> str:
-    last_error = "Nenhum modelo Gemini disponível respondeu."
-    hit_quota_limit = False
+def call_gemini(resolucao: str, api_key: str) -> list:
+    prompt = build_prompt(resolucao)
+    payload = {
+        "contents": [{"parts": [{"text": prompt}]}],
+        "generationConfig": {"temperature": 0.25, "maxOutputTokens": 4096},
+    }
 
+    last_error = None
     for model in GEMINI_MODELS:
         url = GEMINI_URL.format(model=model, key=api_key)
         try:
-            resp = requests.post(
-                url,
-                json={"contents": [{"parts": [{"text": prompt}]}]},
-                timeout=55,
-            )
-        except requests.RequestException as exc:
-            last_error = f"Falha de conexão com o Gemini: {exc}"
+            resp = requests.post(url, json=payload, timeout=60)
+            if resp.status_code == 404:
+                # Este modelo foi descontinuado/renomeado — tenta o próximo da lista.
+                last_error = requests.exceptions.HTTPError(
+                    f"Modelo '{model}' indisponível (404)", response=resp
+                )
+                continue
+            resp.raise_for_status()
+        except requests.exceptions.HTTPError as exc:
+            last_error = exc
             continue
-
-        if resp.status_code == 404:
-            # A Google aposentou esse modelo — tenta o próximo da lista.
-            last_error = f"model {model} no longer available"
-            continue
-
-        if resp.status_code == 429:
-            # Cota do tier gratuito esgotada para ESSE modelo — outro modelo
-            # da lista pode ter cota própria e ainda funcionar.
-            hit_quota_limit = True
-            try:
-                detail = resp.json().get("error", {}).get("message", resp.text)
-            except ValueError:
-                detail = resp.text
-            last_error = f"Gemini ({model}): {detail}"
-            continue
-
-        if not resp.ok:
-            try:
-                detail = resp.json().get("error", {}).get("message", resp.text)
-            except ValueError:
-                detail = resp.text
-            raise RuntimeError(f"A API de IA recusou a requisição (Gemini {model}): {detail}")
 
         data = resp.json()
         try:
-            return data["candidates"][0]["content"]["parts"][0]["text"]
-        except (KeyError, IndexError, TypeError):
-            raise RuntimeError("Não foi possível interpretar a resposta da IA.")
+            text = data["candidates"][0]["content"]["parts"][0]["text"]
+        except (KeyError, IndexError, TypeError) as exc:
+            raise ValueError(f"Resposta inesperada do Gemini: {data}") from exc
 
-    if hit_quota_limit:
-        raise RuntimeError(
-            "Todos os modelos Gemini disponíveis atingiram o limite de uso gratuito no "
-            "momento. Aguarde alguns instantes e tente de novo, ou troque para o "
-            "DeepSeek na seção Configuração. Detalhe: " + last_error
-        )
-    raise RuntimeError(last_error)
+        return normalize_flashcards(extract_json_array(text))
+
+    # Nenhum modelo da lista funcionou.
+    raise last_error or ValueError("Nenhum modelo Gemini disponível respondeu.")
 
 
-def call_deepseek(prompt: str, api_key: str) -> str:
-    try:
-        resp = requests.post(
-            DEEPSEEK_URL,
-            headers={"Authorization": f"Bearer {api_key}"},
-            json={
-                "model": "deepseek-chat",
-                "messages": [{"role": "user", "content": prompt}],
-                "temperature": 0.3,
+def call_deepseek(resolucao: str, api_key: str) -> list:
+    prompt = build_prompt(resolucao)
+    headers = {
+        "Authorization": f"Bearer {api_key}",
+        "Content-Type": "application/json",
+    }
+    payload = {
+        "model": "deepseek-chat",
+        "messages": [
+            {
+                "role": "system",
+                "content": "Você responde apenas com JSON válido, sem markdown e sem texto extra.",
             },
-            timeout=55,
-        )
-    except requests.RequestException as exc:
-        raise RuntimeError(f"Falha de conexão com o DeepSeek: {exc}")
-
-    if not resp.ok:
-        try:
-            detail = resp.json().get("error", {}).get("message", resp.text)
-        except ValueError:
-            detail = resp.text
-        raise RuntimeError(f"A API de IA recusou a requisição (DeepSeek): {detail}")
-
+            {"role": "user", "content": prompt},
+        ],
+        "temperature": 0.25,
+    }
+    resp = requests.post(DEEPSEEK_URL, headers=headers, json=payload, timeout=60)
+    resp.raise_for_status()
     data = resp.json()
+
     try:
-        return data["choices"][0]["message"]["content"]
-    except (KeyError, IndexError, TypeError):
-        raise RuntimeError("Não foi possível interpretar a resposta da IA.")
+        text = data["choices"][0]["message"]["content"]
+    except (KeyError, IndexError, TypeError) as exc:
+        raise ValueError(f"Resposta inesperada do DeepSeek: {data}") from exc
+
+    return normalize_flashcards(extract_json_array(text))
 
 
 # ---------------------------------------------------------------------------
@@ -264,89 +197,54 @@ def index():
     return render_template("index.html")
 
 
-@app.route("/api/resolve", methods=["POST"])
-def api_resolve():
-    payload = request.get_json(silent=True) or {}
+@app.route("/api/generate", methods=["POST"])
+def generate():
+    data = request.get_json(force=True, silent=True) or {}
 
-    questao = (payload.get("questao") or "").strip()
-    provider = (payload.get("provider") or "gemini").strip().lower()
-    api_key = (payload.get("api_key") or "").strip()
+    resolucao = (data.get("resolucao") or "").strip()
+    provider = (data.get("provider") or "gemini").strip().lower()
+    api_key = (data.get("api_key") or "").strip()
 
-    if len(questao) < 10:
-        return jsonify({"error": "Cole o enunciado da questão antes de pedir a resolução."}), 400
-
+    # Permite fixar uma chave no servidor via variável de ambiente, como fallback.
     if not api_key:
         env_var = "GEMINI_API_KEY" if provider == "gemini" else "DEEPSEEK_API_KEY"
         api_key = os.environ.get(env_var, "")
 
-    if not api_key:
-        return jsonify({"error": "Informe uma chave de API válida (ou configure uma fixa no servidor)."}), 400
-
-    prompt = RESOLVE_PROMPT_TEMPLATE.format(questao=questao)
-
-    try:
-        if provider == "deepseek":
-            raw_text = call_deepseek(prompt, api_key)
-        else:
-            raw_text = call_gemini(prompt, api_key)
-    except RuntimeError as exc:
-        return jsonify({"error": str(exc)}), 502
-
-    resolucao = raw_text.strip()
-    # Remove eventuais cercas de markdown que a IA às vezes adiciona por hábito.
-    resolucao = re.sub(r"^```[a-zA-Z]*\n?", "", resolucao)
-    resolucao = re.sub(r"\n?```$", "", resolucao).strip()
-
-    if not resolucao:
-        return jsonify({"error": "A IA não retornou nenhum texto de resolução."}), 502
-
-    return jsonify({"resolucao": resolucao})
-
-
-@app.route("/api/generate", methods=["POST"])
-def api_generate():
-    payload = request.get_json(silent=True) or {}
-
-    resolucao = (payload.get("resolucao") or "").strip()
-    provider = (payload.get("provider") or "gemini").strip().lower()
-    api_key = (payload.get("api_key") or "").strip()
-    existentes = payload.get("existentes")
-    tema = payload.get("tema")
-
-    if len(resolucao) < 20:
+    if not resolucao or len(resolucao) < 20:
         return jsonify({"error": "Cole o texto completo da resolução antes de gerar."}), 400
 
     if not api_key:
-        env_var = "GEMINI_API_KEY" if provider == "gemini" else "DEEPSEEK_API_KEY"
-        api_key = os.environ.get(env_var, "")
+        return jsonify({"error": "Informe sua chave de API antes de gerar."}), 400
 
-    if not api_key:
-        return jsonify({"error": "Informe uma chave de API válida (ou configure uma fixa no servidor)."}), 400
-
-    prompt = build_prompt(resolucao, existentes=existentes, tema=tema)
+    if provider not in ("gemini", "deepseek"):
+        return jsonify({"error": "Provedor de IA inválido."}), 400
 
     try:
-        if provider == "deepseek":
-            raw_text = call_deepseek(prompt, api_key)
+        if provider == "gemini":
+            flashcards = call_gemini(resolucao, api_key)
         else:
-            raw_text = call_gemini(prompt, api_key)
-    except RuntimeError as exc:
-        return jsonify({"error": str(exc)}), 502
+            flashcards = call_deepseek(resolucao, api_key)
+    except requests.exceptions.HTTPError as exc:
+        detail = exc.response.text[:300] if exc.response is not None else str(exc)
+        return jsonify({"error": f"A API de IA recusou a requisição: {detail}"}), 502
+    except requests.exceptions.RequestException as exc:
+        return jsonify({"error": f"Falha de conexão com a IA: {exc}"}), 502
+    except (ValueError, json.JSONDecodeError) as exc:
+        return jsonify({"error": f"Não foi possível interpretar a resposta da IA: {exc}"}), 502
 
-    parsed = extract_json(raw_text)
-    if not isinstance(parsed, dict):
-        return jsonify({"error": "Não foi possível interpretar a resposta da IA."}), 502
+    if not flashcards:
+        return (
+            jsonify(
+                {
+                    "error": "A IA não retornou flashcards válidos para este texto. "
+                    "Tente colar uma resolução mais detalhada."
+                }
+            ),
+            502,
+        )
 
-    flashcards = parsed.get("flashcards", [])
-    sugestoes_tema = parsed.get("sugestoes_tema", [])
-
-    if not isinstance(flashcards, list):
-        flashcards = []
-    if not isinstance(sugestoes_tema, list):
-        sugestoes_tema = []
-
-    return jsonify({"flashcards": flashcards, "sugestoes_tema": sugestoes_tema})
+    return jsonify({"flashcards": flashcards})
 
 
 if __name__ == "__main__":
-    app.run(debug=True)
+    app.run(debug=True, host="0.0.0.0", port=5000)
