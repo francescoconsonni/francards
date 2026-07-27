@@ -6,61 +6,77 @@ import requests
 from dotenv import load_dotenv
 from flask import Flask, jsonify, render_template, request
 
+
 load_dotenv()
 
-app = Flask(__name__, static_folder="public", static_url_path="")
+
+app = Flask(
+    __name__,
+    static_folder="public",
+    static_url_path=""
+)
+
+
+# -------------------------------------------------------------------
+# CONFIGURAÇÕES DAS APIs
+# -------------------------------------------------------------------
 
 GEMINI_MODELS = [
-    "gemini-3.6-flash",
     "gemini-2.5-flash",
-    "gemini-flash-latest",
-    "gemini-3.5-flash-lite",
+    "gemini-flash-latest"
 ]
+
 
 GEMINI_URL = (
     "https://generativelanguage.googleapis.com/v1beta/models/"
     "{model}:generateContent?key={key}"
 )
 
-DEEPSEEK_URL = "https://api.deepseek.com/chat/completions"
+
+DEEPSEEK_URL = (
+    "https://api.deepseek.com/chat/completions"
+)
 
 
-# ---------------------------------------------------------------------------
-# Prompt
-# ---------------------------------------------------------------------------
+
+# -------------------------------------------------------------------
+# PROMPTS
+# -------------------------------------------------------------------
 
 PROMPT_TEMPLATE = """
-Você é um médico especialista em criar flashcards de altíssima qualidade para
-estudo com repetição espaçada (Anki), a partir de resoluções de questões.
+Você é um médico especialista em criar flashcards de altíssima qualidade
+para estudo com repetição espaçada (Anki), a partir de resoluções de questões.
 
-Sua tarefa: ler a RESOLUÇÃO abaixo e extrair dela flashcards que testem
-raciocínio clínico específico — nunca conceitos genéricos.
+Sua tarefa é ler a RESOLUÇÃO abaixo e extrair flashcards que testem
+raciocínio clínico específico.
 
 REGRAS OBRIGATÓRIAS:
 
-1. Cada flashcard testa UM ÚNICO fato, decisão ou raciocínio.
+1. Cada flashcard deve testar UM único fato, decisão ou raciocínio.
 
-2. PROIBIDO perguntas genéricas como:
-"O que é...", "Explique sobre...", "Fale sobre...".
+2. Não faça perguntas genéricas como:
+- "Explique sobre..."
+- "O que é..."
+- "Fale sobre..."
 
 3. Priorize:
-- raciocínio clínico;
-- escolha terapêutica;
+- condutas de primeira linha;
 - contraindicações;
-- diagnóstico;
-- critérios;
-- valores importantes;
-- condutas de prova.
+- critérios diagnósticos;
+- exames importantes;
+- decisões clínicas;
+- diferenças entre alternativas.
 
-4. Respostas devem ser CURTAS e PRECISAS.
+4. As respostas devem ser curtas e objetivas.
 
-5. Não crie informações que não estejam na resolução.
+5. Não invente informações que não estejam na resolução.
 
-6. Não repita a mesma informação.
+6. Não repita conceitos.
 
 7. Gere entre 3 e 10 flashcards.
 
-8. Se não houver conteúdo suficiente, retorne uma lista vazia.
+8. Caso não exista conteúdo relevante, retorne [].
+
 
 FORMATO DE SAÍDA:
 
@@ -76,84 +92,98 @@ Responda APENAS com JSON válido:
 
 RESOLUÇÃO DA QUESTÃO:
 
-"""
+\"\"\"
 {resolucao}
-"""
+\"\"\"
 """
 
 
 EXISTING_BLOCK_TEMPLATE = """
+
 ATENÇÃO:
 
-Estas fichas já foram criadas anteriormente:
+Os flashcards abaixo já foram criados.
+
+Não repita perguntas existentes,
+nem perguntas reformuladas.
+
+Crie apenas flashcards novos.
+
+FLASHCARDS EXISTENTES:
 
 {existentes_json}
 
-
-Não repita nenhuma delas.
-
-Crie apenas novas fichas que explorem aspectos ainda não abordados.
-
-A instrução do usuário deve ser seguida quando existir.
+"""
 
 
-INSTRUÇÃO DO USUÁRIO:
+INSTRUCTION_BLOCK_TEMPLATE = """
 
-{instrucao}
+O usuário pediu uma orientação adicional:
 
+"{instrucao}"
 
-Se não houver mais informações relevantes ou se o tema solicitado já
-estiver completamente coberto, retorne uma lista vazia.
+Crie flashcards especificamente sobre esse ponto,
+desde que exista informação suficiente na resolução.
+
 """
 
 
 def build_prompt(
     resolucao: str,
     existentes=None,
-    instrucao: str = ""
-) -> str:
+    instrucao=None
+):
 
     prompt = PROMPT_TEMPLATE.format(
         resolucao=resolucao.strip()
     )
 
+
     if existentes:
 
-        existentes_json = json.dumps(
-            existentes,
-            ensure_ascii=False,
-            indent=2
+        prompt += EXISTING_BLOCK_TEMPLATE.format(
+            existentes_json=json.dumps(
+                existentes,
+                ensure_ascii=False,
+                indent=2
+            )
         )
 
-        prompt += EXISTING_BLOCK_TEMPLATE.format(
-            existentes_json=existentes_json,
-            instrucao=instrucao.strip() or "(nenhuma)"
+
+    if instrucao:
+
+        prompt += INSTRUCTION_BLOCK_TEMPLATE.format(
+            instrucao=instrucao
         )
+
 
     return prompt
+    
+    
+# -------------------------------------------------------------------
+# HELPERS
+# -------------------------------------------------------------------
 
 
-# ---------------------------------------------------------------------------
-# Helpers
-# ---------------------------------------------------------------------------
-
-
-def extract_json_array(text: str):
+def extract_json_array(text):
 
     cleaned = text.strip()
+
 
     cleaned = re.sub(
         r"^```(json)?",
         "",
-        cleaned.strip(),
+        cleaned,
         flags=re.IGNORECASE
     ).strip()
+
 
     cleaned = re.sub(
         r"```$",
         "",
-        cleaned.strip()
+        cleaned
     ).strip()
+
 
     match = re.search(
         r"\[.*\]",
@@ -161,17 +191,21 @@ def extract_json_array(text: str):
         re.DOTALL
     )
 
+
     if match:
         cleaned = match.group(0)
+
 
     try:
         return json.loads(cleaned)
 
     except json.JSONDecodeError:
+
         return json.loads(
             cleaned,
             strict=False
         )
+
 
 
 def normalize_flashcards(raw):
@@ -186,23 +220,27 @@ def normalize_flashcards(raw):
                 candidate = value
                 break
 
-        raw = candidate if candidate else []
+        raw = candidate or []
 
 
     if not isinstance(raw, list):
+
         raw = []
 
 
-    cleaned = []
+    result = []
+
 
     for card in raw:
 
         if not isinstance(card, dict):
             continue
 
+
         pergunta = str(
             card.get("pergunta", "")
         ).strip()
+
 
         resposta = str(
             card.get("resposta", "")
@@ -211,24 +249,31 @@ def normalize_flashcards(raw):
 
         if pergunta and resposta:
 
-            cleaned.append(
+            result.append(
                 {
                     "pergunta": pergunta,
-                    "resposta": resposta,
+                    "resposta": resposta
                 }
             )
 
-    return cleaned
-    # ---------------------------------------------------------------------------
-# Chamadas às APIs de IA
-# ---------------------------------------------------------------------------
+
+    return result
+
+
+
+
+
+    
+# -------------------------------------------------------------------
+# CHAMADAS ÀS APIs DE IA
+# -------------------------------------------------------------------
 
 
 def call_gemini(
-    resolucao: str,
-    api_key: str,
+    resolucao,
+    api_key,
     existentes=None,
-    instrucao: str = ""
+    instrucao=None
 ):
 
     prompt = build_prompt(
@@ -237,20 +282,31 @@ def call_gemini(
         instrucao
     )
 
+
     payload = {
+
         "contents": [
+
             {
                 "parts": [
+
                     {
                         "text": prompt
                     }
+
                 ]
             }
+
         ],
+
         "generationConfig": {
+
             "temperature": 0.25,
-            "maxOutputTokens": 4096,
-        },
+
+            "maxOutputTokens": 4096
+
+        }
+
     }
 
 
@@ -259,48 +315,54 @@ def call_gemini(
 
     for model in GEMINI_MODELS:
 
+
         url = GEMINI_URL.format(
             model=model,
             key=api_key
         )
 
+
         try:
 
-            resp = requests.post(
+            response = requests.post(
                 url,
                 json=payload,
                 timeout=60
             )
 
 
-            if resp.status_code == 404:
+            if response.status_code == 404:
 
-                last_error = requests.exceptions.HTTPError(
-                    f"Modelo '{model}' indisponível",
-                    response=resp
+                last_error = Exception(
+                    f"Modelo Gemini indisponível: {model}"
                 )
 
                 continue
 
 
-            resp.raise_for_status()
+            response.raise_for_status()
 
 
         except requests.exceptions.HTTPError as exc:
 
             last_error = exc
+
             continue
 
 
-        data = resp.json()
+
+        data = response.json()
 
 
         try:
 
             text = (
                 data["candidates"][0]
-                ["content"]["parts"][0]["text"]
+                ["content"]
+                ["parts"][0]
+                ["text"]
             )
+
 
         except (
             KeyError,
@@ -313,22 +375,26 @@ def call_gemini(
             ) from exc
 
 
+
         return normalize_flashcards(
             extract_json_array(text)
         )
 
 
-    raise last_error or ValueError(
-        "Nenhum modelo Gemini disponível respondeu."
+
+    raise last_error or Exception(
+        "Nenhum modelo Gemini respondeu."
     )
 
 
 
+
+
 def call_deepseek(
-    resolucao: str,
-    api_key: str,
+    resolucao,
+    api_key,
     existentes=None,
-    instrucao: str = ""
+    instrucao=None
 ):
 
     prompt = build_prompt(
@@ -339,53 +405,76 @@ def call_deepseek(
 
 
     headers = {
-        "Authorization": f"Bearer {api_key}",
-        "Content-Type": "application/json",
+
+        "Authorization":
+            f"Bearer {api_key}",
+
+        "Content-Type":
+            "application/json"
+
     }
 
 
     payload = {
 
-        "model": "deepseek-chat",
+        "model":
+            "deepseek-chat",
+
 
         "messages": [
 
             {
-                "role": "system",
-                "content": (
-                    "Responda apenas com JSON válido, "
-                    "sem markdown e sem texto extra."
-                ),
+
+                "role":
+                    "system",
+
+                "content":
+                    "Responda apenas com JSON válido."
+
             },
+
 
             {
-                "role": "user",
-                "content": prompt,
-            },
+
+                "role":
+                    "user",
+
+                "content":
+                    prompt
+
+            }
+
         ],
 
-        "temperature": 0.25,
+
+        "temperature":
+            0.25
+
     }
 
 
-    resp = requests.post(
+    response = requests.post(
         DEEPSEEK_URL,
         headers=headers,
         json=payload,
         timeout=60
     )
 
-    resp.raise_for_status()
 
-    data = resp.json()
+    response.raise_for_status()
+
+
+    data = response.json()
 
 
     try:
 
         text = (
             data["choices"][0]
-            ["message"]["content"]
+            ["message"]
+            ["content"]
         )
+
 
     except (
         KeyError,
@@ -398,15 +487,14 @@ def call_deepseek(
         ) from exc
 
 
+
     return normalize_flashcards(
         extract_json_array(text)
     )
-
-
-
-# ---------------------------------------------------------------------------
-# Rotas
-# ---------------------------------------------------------------------------
+   
+# -------------------------------------------------------------------
+# ROTAS
+# -------------------------------------------------------------------
 
 
 @app.route("/")
@@ -415,6 +503,7 @@ def index():
     return render_template(
         "index.html"
     )
+
 
 
 
@@ -430,61 +519,73 @@ def generate():
     ) or {}
 
 
+
     resolucao = (
-        data.get("resolucao") or ""
+        data.get("resolucao")
+        or ""
     ).strip()
+
 
 
     provider = (
-        data.get("provider") or "gemini"
+        data.get("provider")
+        or "gemini"
     ).strip().lower()
 
 
+
     api_key = (
-        data.get("api_key") or ""
+        data.get("api_key")
+        or ""
     ).strip()
 
 
+
     instrucao = (
-        data.get("instrucao") or ""
+        data.get("instrucao")
+        or ""
     ).strip()
 
 
 
     existentes_raw = (
-        data.get("existentes") or []
+        data.get("existentes")
+        or []
     )
 
 
-    existentes = []
 
-    if isinstance(
-        existentes_raw,
-        list
-    ):
-
-        existentes = normalize_flashcards(
+    existentes = (
+        normalize_flashcards(
             existentes_raw
         )
+        if isinstance(
+            existentes_raw,
+            list
+        )
+        else []
+    )
 
 
 
+    # Permite usar chave armazenada no servidor
     if not api_key:
 
-        env_var = (
+        env_name = (
             "GEMINI_API_KEY"
             if provider == "gemini"
             else "DEEPSEEK_API_KEY"
         )
 
+
         api_key = os.environ.get(
-            env_var,
+            env_name,
             ""
         )
 
 
 
-    if not resolucao or len(resolucao) < 20:
+    if len(resolucao) < 20:
 
         return jsonify(
             {
@@ -492,6 +593,7 @@ def generate():
                 "Cole o texto completo da resolução antes de gerar."
             }
         ), 400
+
 
 
 
@@ -503,6 +605,7 @@ def generate():
                 "Informe sua chave de API antes de gerar."
             }
         ), 400
+
 
 
 
@@ -520,6 +623,7 @@ def generate():
 
 
 
+
     try:
 
         if provider == "gemini":
@@ -530,6 +634,7 @@ def generate():
                 existentes,
                 instrucao
             )
+
 
         else:
 
@@ -544,11 +649,11 @@ def generate():
 
     except requests.exceptions.HTTPError as exc:
 
-        detail = (
-            exc.response.text[:300]
-            if exc.response is not None
-            else str(exc)
-        )
+        detail = ""
+
+        if exc.response is not None:
+
+            detail = exc.response.text[:300]
 
 
         return jsonify(
@@ -560,58 +665,33 @@ def generate():
 
 
 
-    except requests.exceptions.RequestException as exc:
+
+    except Exception as exc:
 
         return jsonify(
             {
                 "error":
-                f"Falha de conexão com a IA: {exc}"
+                str(exc)
             }
         ), 502
 
-
-
-    except (
-        ValueError,
-        json.JSONDecodeError
-    ) as exc:
-
-        return jsonify(
-            {
-                "error":
-                f"Não foi possível interpretar a resposta da IA: {exc}"
-            }
-        ), 502
-
-
-
-    if not flashcards:
-
-        if existentes:
-
-            return jsonify(
-                {
-                    "flashcards": []
-                }
-            )
-
-
-        return jsonify(
-            {
-                "error":
-                "A IA não retornou flashcards válidos para este texto. "
-                "Tente colar uma resolução mais detalhada."
-            }
-        ), 502
 
 
 
     return jsonify(
         {
-            "flashcards": flashcards
+            "flashcards":
+            flashcards
         }
     )
 
+
+
+
+
+# -------------------------------------------------------------------
+# EXECUÇÃO LOCAL
+# -------------------------------------------------------------------
 
 
 if __name__ == "__main__":
