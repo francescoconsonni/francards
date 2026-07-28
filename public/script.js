@@ -604,7 +604,37 @@
   els.resolveBtn.addEventListener("click", resolveQuestion);
   els.useResolutionBtn.addEventListener("click", useGeneratedResolution);
 
+  // ------------------------------------------------------------------
+  // Recepção de conteúdo vindo da extensão do Chrome (handoff via #fc=...)
+  // A extensão abre esta página com o texto da questão no fragmento da URL
+  // (hash), que nunca é enviado ao servidor. Aqui a gente lê, preenche o
+  // campo de resolução e limpa a URL.
+  // ------------------------------------------------------------------
+
+  function applyHandoffFromHash() {
+    const hash = window.location.hash || "";
+    const match = hash.match(/[#&]fc=([^&]+)/);
+    if (!match) return;
+
+    let texto = "";
+    try {
+      texto = decodeURIComponent(match[1]);
+    } catch (_) {
+      return; // fragmento malformado — ignora
+    }
+    texto = texto.trim();
+    if (!texto) return;
+
+    insertTextInResolucao(texto, { replace: true });
+    // Remove o hash para não reaplicar em recarregamentos nem deixar o texto na URL.
+    history.replaceState(null, "", window.location.pathname + window.location.search);
+    setGenStatus("Questão importada da extensão — revise e clique em Gerar flashcards.", "ok");
+    els.resolucao.scrollIntoView({ behavior: "smooth", block: "center" });
+    els.resolucao.focus();
+  }
+
   loadSettings();
+  applyHandoffFromHash();
   checkAnkiConnection();
   autoGrow(els.resolveResult);
   els.resolucao.focus();

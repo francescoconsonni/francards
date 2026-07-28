@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <header>
+    <img src="icons/icon-32.png" alt="" width="22" height="22">
+    <div>
+      <strong>Francards</strong>
+      <span id="source" class="source">capturando…</span>
+    </div>
+    <button id="recapture" class="ghost" type="button" title="Capturar de novo">↻</button>
+  </header>
+
+  <textarea id="captured" rows="9" placeholder="Selecione o texto da questão na página (ou deixe a captura automática tentar) e ele aparece aqui — edite se precisar."></textarea>
+
+  <button id="create" class="primary" type="button">Criar flashcard →</button>
+  <p id="status" class="status" role="status" aria-live="polite"></p>
+
+  <details class="settings">
+    <summary>Configuração</summary>
+    <label>
+      <span>Endereço do Francards</span>
+      <input id="url" type="text" spellcheck="false" autocomplete="off"
+             placeholder="https://francards.vercel.app">
+    </label>
+    <p class="hint">Para testar local, use <code>http://localhost:5000</code>. A questão vai no fragmento (<code>#</code>) da URL — não passa pelo servidor.</p>
+  </details>
+
+  <script src="extractor.js"></script>
+  <script src="popup.js"></script>
+</body>
+</html>

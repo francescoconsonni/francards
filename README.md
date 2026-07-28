@@ -345,3 +345,24 @@ configura `apiKey`).
 | Erro 429 "quota" (Gemini) | Você bateu no limite de chamadas por minuto/dia da cota gratuita — espere um pouco e tente de novo. |
 | Erro 404 "model ... no longer available" (Gemini) | O Google descontinuou aquele modelo — o app já tenta modelos alternativos sozinho; se persistir, pode ser necessário atualizar a lista `GEMINI_MODELS` em `app.py`. |
 | Fichas não chegam mesmo com Tailscale configurado | Confirme que o app do Tailscale está **ativo/conectado** no aparelho que está usando, e que o computador de casa está ligado com o Anki aberto. |
+
+---
+
+## 10. Extensão do Chrome (capturar questão do medcof)
+
+Há uma extensão em `extensao/` que captura a questão que você errou (no
+`qbank-prime.medcof.com.br` ou em qualquer site) e abre o Francards já
+preenchido para gerar o flashcard. Instalação, uso e como calibrar os
+seletores do medcof estão em [`extensao/README-extensao.md`](extensao/README-extensao.md).
+
+## 11. Rodar os testes (desenvolvimento)
+
+```bash
+pip install pytest responses
+python -m pytest -q          # backend: /api/generate, /api/resolve, parsing
+python test_handoff.py       # handoff extensão -> site (usa Chromium)
+python test_extractor.py     # extração da extensão (seleção / seletores / heurística)
+```
+
+Os dois últimos exigem o Playwright/Chromium (`pip install playwright && playwright install chromium`).
+O backend é testado com a IA mockada — nenhuma chave de API é gasta.
