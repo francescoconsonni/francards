@@ -264,9 +264,36 @@ def parse_generation(raw) -> dict:
 # ---------------------------------------------------------------------------
 
 
-def _call_gemini_text(prompt: str, api_key: str) -> str:
+MAX_IMAGES = 4
+ALLOWED_IMAGE_MIME = {"image/png", "image/jpeg", "image/jpg", "image/webp", "image/gif"}
+
+
+def normalize_images(raw) -> list:
+    """Valida a lista de imagens vinda do cliente. Cada item deve ser
+    {"mime": "image/png", "data": "<base64 sem prefixo>"}. Retorna no máximo
+    MAX_IMAGES imagens válidas."""
+    if not isinstance(raw, list):
+        return []
+    out = []
+    for img in raw:
+        if not isinstance(img, dict):
+            continue
+        mime = str(img.get("mime", "")).strip().lower()
+        data = str(img.get("data", "")).strip()
+        if mime in ALLOWED_IMAGE_MIME and len(data) > 32:
+            out.append({"mime": "image/jpeg" if mime == "image/jpg" else mime, "data": data})
+        if len(out) >= MAX_IMAGES:
+            break
+    return out
+
+
+def _call_gemini_text(prompt: str, api_key: str, images=None) -> str:
+    parts = [{"text": prompt}]
+    for img in images or []:
+        parts.append({"inline_data": {"mime_type": img["mime"], "data": img["data"]}})
+
     payload = {
-        "contents": [{"parts": [{"text": prompt}]}],
+        "contents": [{"parts": parts}],
         "generationConfig": {"temperature": 0.25, "maxOutputTokens": 4096},
     }
 
@@ -319,10 +346,11 @@ def _call_deepseek_text(prompt: str, api_key: str, system: str) -> str:
         raise ValueError(f"Resposta inesperada do DeepSeek: {data}") from exc
 
 
-def call_llm_text(prompt: str, provider: str, api_key: str, system: str) -> str:
-    """Fachada única para as duas IAs. Devolve o texto cru da resposta."""
+def call_llm_text(prompt: str, provider: str, api_key: str, system: str, images=None) -> str:
+    """Fachada única para as duas IAs. Devolve o texto cru da resposta.
+    Só o Gemini é multimodal; no DeepSeek as imagens são ignoradas."""
     if provider == "gemini":
-        return _call_gemini_text(prompt, api_key)
+        return _call_gemini_text(prompt, api_key, images=images)
     return _call_deepseek_text(prompt, api_key, system)
 
 
@@ -362,19 +390,28 @@ def generate():
     existentes = data.get("existentes") or []
     if not isinstance(existentes, list):
         existentes = []
+    imagens = normalize_images(data.get("imagens"))
 
-    if not resolucao or len(resolucao) < 20:
-        return jsonify({"error": "Cole o texto completo da resolução antes de gerar."}), 400
+    # Com imagem, o texto pode ser curto (a questão está na figura). Só exigimos
+    # os 20 caracteres de resolução quando NÃO há imagem.
+    if not imagens and (not resolucao or len(resolucao) < 20):
+        return jsonify({"error": "Cole o texto completo da resolução (ou anexe uma imagem) antes de gerar."}), 400
     if not api_key:
         return jsonify({"error": "Informe sua chave de API antes de gerar."}), 400
     if provider not in ("gemini", "deepseek"):
         return jsonify({"error": "Provedor de IA inválido."}), 400
 
     prompt = build_generate_prompt(resolucao, tema=tema, existentes=existentes, formato=formato)
+    if imagens:
+        prompt += (
+            "\n\nOBSERVAÇÃO: há IMAGEM(NS) anexada(s) a esta questão (ex.: ECG, "
+            "radiografia, foto clínica). Analise o que elas mostram e use esses "
+            "achados nas fichas."
+        )
     system = "Você responde apenas com JSON válido, sem markdown e sem texto extra."
 
     try:
-        text = call_llm_text(prompt, provider, api_key, system)
+        text = call_llm_text(prompt, provider, api_key, system, images=imagens)
         parsed = parse_generation(extract_json(text))
     except requests.exceptions.HTTPError as exc:
         detail = exc.response.text[:300] if exc.response is not None else str(exc)

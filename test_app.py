@@ -63,6 +63,66 @@ def test_parse_generation_drops_empty_cards():
     assert parsed["flashcards"] == [{"tipo": "qa", "pergunta": "P", "resposta": "R"}]
 
 
+FAKE_IMG = {"mime": "image/png", "data": "A" * 120}  # base64 fictício, > 32 chars
+
+
+def gemini_request_json(call):
+    body = call.request.body
+    body = body.decode() if isinstance(body, bytes) else body
+    return json.loads(body)
+
+
+def test_normalize_images_filters_invalid():
+    raw = [
+        {"mime": "image/png", "data": "x" * 100},   # ok
+        {"mime": "text/plain", "data": "x" * 100},   # mime não permitido
+        {"mime": "image/jpeg", "data": "short"},     # dados curtos demais
+        "não é dict",
+    ]
+    out = appmod.normalize_images(raw)
+    assert len(out) == 1
+    assert out[0]["mime"] == "image/png"
+
+
+@responses.activate
+def test_generate_sends_image_to_gemini(client):
+    body = json.dumps({"flashcards": [{"tipo": "qa", "pergunta": "P?", "resposta": "R"}], "sugestoes_tema": []})
+    responses.add(responses.POST, GEMINI_RE, json=gemini_reply(body), status=200)
+    r = client.post(
+        "/api/generate",
+        json={"resolucao": "r" * 40, "provider": "gemini", "api_key": "k", "imagens": [FAKE_IMG]},
+    )
+    assert r.status_code == 200
+    payload = gemini_request_json(responses.calls[0])
+    parts = payload["contents"][0]["parts"]
+    assert any("inline_data" in p for p in parts)
+    inline = [p for p in parts if "inline_data" in p][0]["inline_data"]
+    assert inline["mime_type"] == "image/png"
+
+
+@responses.activate
+def test_generate_allows_short_text_when_image_present(client):
+    body = json.dumps({"flashcards": [{"tipo": "qa", "pergunta": "P?", "resposta": "R"}], "sugestoes_tema": []})
+    responses.add(responses.POST, GEMINI_RE, json=gemini_reply(body), status=200)
+    # texto curto (< 20) mas COM imagem -> deve funcionar, não dar 400
+    r = client.post(
+        "/api/generate",
+        json={"resolucao": "ver figura", "provider": "gemini", "api_key": "k", "imagens": [FAKE_IMG]},
+    )
+    assert r.status_code == 200
+
+
+@responses.activate
+def test_generate_deepseek_ignores_images(client):
+    body = json.dumps({"flashcards": [{"tipo": "qa", "pergunta": "P?", "resposta": "R"}], "sugestoes_tema": []})
+    responses.add(responses.POST, DEEPSEEK_URL, json=deepseek_reply(body), status=200)
+    r = client.post(
+        "/api/generate",
+        json={"resolucao": "r" * 40, "provider": "deepseek", "api_key": "k", "imagens": [FAKE_IMG]},
+    )
+    assert r.status_code == 200  # DeepSeek gera a partir do texto, sem quebrar
+
+
 def test_cloze_prompt_keeps_double_braces():
     prompt = appmod.build_generate_prompt("x" * 40, formato="cloze")
     # a sintaxe do Anki precisa sobreviver: {{c1::...}} com chaves DUPLAS

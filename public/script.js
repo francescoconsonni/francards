@@ -17,6 +17,10 @@
     ankiUrl: $("ankiUrl"),
     ankiApiKey: $("ankiApiKey"),
     resolucao: $("resolucao"),
+    imageZone: $("imageZone"),
+    imageInput: $("imageInput"),
+    imageThumbs: $("imageThumbs"),
+    attachImages: $("attachImages"),
     questaoInput: $("questaoInput"),
     resolveBtn: $("resolveBtn"),
     resolveStatus: $("resolveStatus"),
@@ -137,6 +141,13 @@
   }
 
   els.resolucao.addEventListener("paste", (e) => {
+    // Se colaram uma imagem, captura como figura (não como texto).
+    const imgFiles = imageFilesFromDataTransfer(e.clipboardData);
+    if (imgFiles.length) {
+      e.preventDefault();
+      imgFiles.forEach(addImageFile);
+      return;
+    }
     const html = e.clipboardData && e.clipboardData.getData("text/html");
     if (!html) return;
     e.preventDefault();
@@ -165,6 +176,131 @@
       );
     }
   }
+
+  // ------------------------------------------------------------------
+  // Imagens (ECG, radiografia, foto clínica)
+  // ------------------------------------------------------------------
+
+  let attachedImages = []; // { id, mime, base64, dataUrl, filename? }
+  let imageSeq = 0;
+
+  function imageFilesFromDataTransfer(dt) {
+    if (!dt) return [];
+    const out = [];
+    if (dt.files && dt.files.length) {
+      for (const f of dt.files) if (f.type.startsWith("image/")) out.push(f);
+    }
+    if (!out.length && dt.items) {
+      for (const it of dt.items) {
+        if (it.kind === "file" && it.type.startsWith("image/")) {
+          const f = it.getAsFile();
+          if (f) out.push(f);
+        }
+      }
+    }
+    return out;
+  }
+
+  function addImageFile(file) {
+    if (!file || !file.type.startsWith("image/")) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      const dataUrl = String(reader.result || "");
+      const comma = dataUrl.indexOf(",");
+      if (comma < 0) return;
+      const base64 = dataUrl.slice(comma + 1);
+      attachedImages.push({
+        id: ++imageSeq,
+        mime: file.type,
+        base64,
+        dataUrl,
+      });
+      renderThumbs();
+    };
+    reader.readAsDataURL(file);
+  }
+
+  function removeImage(id) {
+    attachedImages = attachedImages.filter((img) => img.id !== id);
+    renderThumbs();
+  }
+
+  function renderThumbs() {
+    els.imageThumbs.innerHTML = "";
+    els.imageZone.classList.toggle("has-images", attachedImages.length > 0);
+    attachedImages.forEach((img) => {
+      const wrap = document.createElement("div");
+      wrap.className = "image-thumb";
+      const image = document.createElement("img");
+      image.src = img.dataUrl;
+      image.alt = "imagem da questão";
+      const rm = document.createElement("button");
+      rm.type = "button";
+      rm.className = "image-thumb-remove";
+      rm.textContent = "×";
+      rm.title = "remover imagem";
+      rm.addEventListener("click", () => removeImage(img.id));
+      wrap.append(image, rm);
+      els.imageThumbs.appendChild(wrap);
+    });
+  }
+
+  function imagesForApi() {
+    return attachedImages.map((img) => ({ mime: img.mime, data: img.base64 }));
+  }
+
+  // --- anexo no Anki (storeMediaFile + <img>) ---
+  function hashString(str) {
+    let h = 5381;
+    for (let i = 0; i < str.length; i++) h = ((h << 5) + h + str.charCodeAt(i)) >>> 0;
+    return h.toString(36);
+  }
+
+  function extFromMime(mime) {
+    if (mime === "image/jpeg" || mime === "image/jpg") return "jpg";
+    if (mime === "image/webp") return "webp";
+    if (mime === "image/gif") return "gif";
+    return "png";
+  }
+
+  async function ensureMediaStored() {
+    for (const img of attachedImages) {
+      if (img.filename) continue;
+      const filename = `francards-${hashString(img.base64)}.${extFromMime(img.mime)}`;
+      await ankiRequest("storeMediaFile", { filename, data: img.base64 });
+      img.filename = filename;
+    }
+    return attachedImages.map((img) => img.filename).filter(Boolean);
+  }
+
+  async function imagesHtmlForAnki() {
+    if (!els.attachImages.checked || attachedImages.length === 0) return "";
+    const names = await ensureMediaStored();
+    return names.map((n) => `<br><img src="${n}">`).join("");
+  }
+
+  // Drag & drop e input de arquivo
+  els.imageZone.addEventListener("dragover", (e) => {
+    e.preventDefault();
+    els.imageZone.classList.add("dragover");
+  });
+  els.imageZone.addEventListener("dragleave", () => els.imageZone.classList.remove("dragover"));
+  els.imageZone.addEventListener("drop", (e) => {
+    e.preventDefault();
+    els.imageZone.classList.remove("dragover");
+    imageFilesFromDataTransfer(e.dataTransfer).forEach(addImageFile);
+  });
+  els.imageZone.addEventListener("paste", (e) => {
+    const imgs = imageFilesFromDataTransfer(e.clipboardData);
+    if (imgs.length) {
+      e.preventDefault();
+      imgs.forEach(addImageFile);
+    }
+  });
+  els.imageInput.addEventListener("change", () => {
+    Array.from(els.imageInput.files || []).forEach(addImageFile);
+    els.imageInput.value = "";
+  });
 
   // ------------------------------------------------------------------
   // Resolver questão com a IA
@@ -279,16 +415,20 @@
 
     await ensureDeck(deckName);
 
+    // Se o usuário pediu para anexar a imagem, guarda a mídia no Anki e monta o
+    // <img> uma única vez (reaproveitado em todas as fichas).
+    const imgHtml = await imagesHtmlForAnki();
+
     let modelName;
     let fields;
     if (card.tipo === "cloze") {
       // Cloze usa um modelo de nota próprio (padrão do Anki: "Cloze", campo "Text").
       modelName = els.clozeModelName.value.trim() || "Cloze";
-      fields = { [els.clozeField.value.trim() || "Text"]: card.texto };
+      fields = { [els.clozeField.value.trim() || "Text"]: card.texto + imgHtml };
     } else {
       modelName = els.modelName.value.trim() || "Basic";
       fields = {
-        [els.frontField.value.trim() || "Front"]: card.pergunta,
+        [els.frontField.value.trim() || "Front"]: card.pergunta + imgHtml,
         [els.backField.value.trim() || "Back"]: card.resposta,
       };
     }
@@ -328,11 +468,12 @@
     const apiKey = els.apiKey.value.trim();
 
     const formato = els.formato.value;
+    const imagens = imagesForApi();
 
     const res = await fetch("/api/generate", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ resolucao, provider, api_key: apiKey, formato, ...extra }),
+      body: JSON.stringify({ resolucao, provider, api_key: apiKey, formato, imagens, ...extra }),
     });
     const data = await res.json();
     if (!res.ok) throw new Error(data.error || `Erro ${res.status}`);
@@ -341,8 +482,8 @@
 
   async function generateFlashcards() {
     const resolucao = els.resolucao.value.trim();
-    if (resolucao.length < 20) {
-      setGenStatus("Cole o texto completo da resolução antes de gerar.", "error");
+    if (resolucao.length < 20 && attachedImages.length === 0) {
+      setGenStatus("Cole a resolução ou anexe uma imagem antes de gerar.", "error");
       return;
     }
 
@@ -378,8 +519,8 @@
 
   async function generateMoreFlashcards(tema = null, { button = els.generateMoreBtn, originalLabel = "Gerar mais fichas" } = {}) {
     const resolucao = els.resolucao.value.trim();
-    if (resolucao.length < 20) {
-      setGenStatus("Cole o texto completo da resolução antes de gerar.", "error");
+    if (resolucao.length < 20 && attachedImages.length === 0) {
+      setGenStatus("Cole a resolução ou anexe uma imagem antes de gerar.", "error");
       return;
     }
 

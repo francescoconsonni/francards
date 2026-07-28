@@ -86,7 +86,11 @@ escolher o provedor de IA, colar sua chave de API e gerar as fichas.
    a lugar nenhum além da chamada de geração).
 2. **Resolução da questão**: cole o texto completo da resolução (quanto mais
    raciocínio clínico explícito, melhores as fichas) e clique em **Gerar
-   flashcards**.
+   flashcards**. Você também pode **anexar uma imagem** (ECG, radiografia, foto
+   clínica) — arraste, escolha o arquivo ou cole (Ctrl+V) na área de imagem. No
+   **Gemini**, a IA analisa a figura ao criar as fichas (o DeepSeek não lê
+   imagens). Marque *"Anexar a imagem também nas fichas"* para que ela vá junto
+   no cartão do Anki.
 3. Revise as fichas geradas — os campos de pergunta e resposta são
    editáveis diretamente no cartão.
 4. Clique em **Enviar para o Anki** em cada ficha, ou em **Enviar todas para

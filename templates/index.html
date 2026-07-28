@@ -141,6 +141,21 @@
       </details>
 
       <textarea id="resolucao" rows="11" placeholder="Cole aqui a resolução completa da questão — quanto mais raciocínio clínico explicado, melhores as fichas."></textarea>
+
+      <!-- Área de imagem: ECG, radiografia, foto clínica etc. -->
+      <div id="imageZone" class="image-zone" tabindex="0">
+        <div class="image-zone-hint">
+          <span class="image-zone-icon">🖼️</span>
+          <span>Arraste uma imagem aqui, <label for="imageInput" class="image-zone-link">escolha um arquivo</label> ou cole (Ctrl+V) uma figura da questão — ECG, raio-x, foto.</span>
+          <input type="file" id="imageInput" accept="image/*" multiple hidden>
+        </div>
+        <div id="imageThumbs" class="image-thumbs"></div>
+      </div>
+      <label class="image-attach">
+        <input type="checkbox" id="attachImages">
+        <span>Anexar a imagem também nas fichas enviadas ao Anki</span>
+      </label>
+
       <div class="actions">
         <button id="pasteBtn" class="btn-secondary" type="button">📋 Colar</button>
         <button id="openEvidenceBtn" class="btn-secondary" type="button">↗ Abrir OpenEvidence</button>
