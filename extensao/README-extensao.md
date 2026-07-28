@@ -44,42 +44,58 @@ Fica salvo — só precisa configurar uma vez.
 
 ---
 
-## 4. Os dois modos de captura
+## 4. Como a captura funciona (vários sites)
 
-**Automático (padrão):** ao abrir o popup, a extensão tenta extrair sozinha o
-enunciado + comentário usando os seletores do medcof.
+A extensão tenta capturar nesta ordem:
 
-**Manual (fallback, sempre funciona):** se a captura automática vier errada ou
-vazia, **selecione com o mouse** o trecho certo na página e clique no ↻
-(recapturar) do popup — a seleção tem prioridade sobre tudo. Funciona em
-qualquer site, mesmo que o medcof mude o layout.
+1. **Seleção manual (sempre funciona, prioridade máxima):** se você **selecionar
+   com o mouse** um trecho na página e clicar no ↻ (recapturar), ela usa a sua
+   seleção. Funciona em **qualquer site**, mesmo que o layout mude.
+2. **Regra específica do site:** para o medcof, ela pega sozinha enunciado +
+   alternativas + comentário (calibrado sobre a página real).
+3. **Regra genérica:** em **outros bancos de questões**, ela tenta achar
+   enunciado/alternativas/comentário por nomes de classe comuns. Não é perfeita,
+   mas cobre muitos sites.
+4. **Heurística:** se nada acima funcionar, pega o maior bloco de texto da página.
+
+O popup mostra de onde veio a captura (ex.: `auto (medcof)`, `auto (genérico)`,
+`seleção manual`, `página (heurística)`). Se vier ruim, é só selecionar na mão.
 
 ---
 
-## 5. Calibrar os seletores do medcof  ⚠️ (é aqui que preciso da sua ajuda)
+## 5. Calibrar / adicionar um site novo
 
-A captura automática depende de seletores CSS que apontam para os blocos certos
-da página. Coloquei um chute inicial, mas para acertar em cheio preciso do HTML
-real de uma questão **já respondida**. Como gerar:
+Se um banco de questões específico não capturar bem sozinho, dá pra criar uma
+regra própria pra ele (como a do medcof). Como gerar o exemplo:
 
-1. Responda uma questão no medcof (até aparecer o comentário).
-2. `F12` → aba **Elements** → clique com o botão direito no elemento `<html>` → **Copy → Copy outerHTML**.
-3. Cole num arquivo `medcof-exemplo.html` e me mande (ou salve na pasta do projeto).
+1. Responda uma questão no site (até aparecer o comentário/gabarito).
+2. `F12` → aba **Elements** → botão direito no elemento `<html>` → **Copy → Copy outerHTML**.
+3. Salve num arquivo `.html` e me mande (ou guarde na pasta do projeto).
 
-Com isso eu ajusto o `SITE_RULES` no topo de `popup.js` (as listas
-`question` e `explanation`) e a captura automática passa a acertar sempre.
-Enquanto isso não acontece, use o **modo manual** (seção 4) — ele já funciona.
-
-Onde editar, se quiser mexer você mesmo — topo de `extensao/popup.js`:
+Com o HTML real eu ajusto as regras no topo de `extensao/popup.js`. A estrutura é:
 
 ```js
-const SITE_RULES = {
-  "qbank-prime.medcof.com.br": {
-    question:    ["...seletores do enunciado..."],
-    explanation: ["...seletores do comentário/gabarito..."],
-  },
+const RULES = {
+  sites: [
+    {
+      name: "medcof",
+      match: ["qbank-prime.medcof.com.br", "medcof.com.br"],
+      sections: [
+        ["...seletores do enunciado..."],
+        ["...seletores das alternativas..."],
+        ["...seletores do comentário/gabarito..."],
+      ],
+      noise: ["...regex de ruído a remover..."],
+    },
+    // Para um site novo: copie o bloco acima, troque "name" e "match"
+    // (pedaço do endereço do site) e ajuste os "sections".
+  ],
+  generic: { /* seletores comuns, usados em qualquer site */ },
 };
 ```
+
+Cada item de `sections` é uma seção (enunciado, alternativas, comentário); dentro
+dela a extensão usa o **primeiro** seletor que encontrar texto.
 
 ---
 

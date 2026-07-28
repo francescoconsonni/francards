@@ -44,25 +44,61 @@ REGRAS OBRIGATÓRIAS (siga todas, sem exceção):
 8. Se a resolução não tiver conteúdo suficiente para nenhum flashcard de qualidade,
    retorne uma lista de flashcards vazia."""
 
-PROMPT_EXAMPLE = """EXEMPLOS DO ESTILO ESPERADO (tema diferente do texto abaixo, apenas para calibrar o padrão):
+QA_BLOCK = """FORMATO PERGUNTA-E-RESPOSTA (tipo "qa"):
+- "pergunta": específica o bastante para ter só UMA resposta correta.
+- "resposta": curta e precisa (uma frase ou poucas palavras).
+Exemplos (tema diferente do texto abaixo, apenas para calibrar o padrão):
 [
-  {{"pergunta": "Qual o tratamento de escolha para dissecção aguda de aorta tipo A?", "resposta": "Cirurgia de emergência imediata"}},
-  {{"pergunta": "Por que antiagregantes são contraindicados na dissecção de aorta?", "resposta": "Aumentam o risco de ruptura catastrófica"}},
-  {{"pergunta": "Qual medicamento deve ser administrado antes do vasodilatador na dissecção de aorta?", "resposta": "Betabloqueador (ex.: metoprolol)"}}
+  {"tipo": "qa", "pergunta": "Qual o tratamento de escolha para dissecção aguda de aorta tipo A?", "resposta": "Cirurgia de emergência imediata"},
+  {"tipo": "qa", "pergunta": "Por que antiagregantes são contraindicados na dissecção de aorta?", "resposta": "Aumentam o risco de ruptura catastrófica"}
 ]"""
 
-PROMPT_OUTPUT = """FORMATO DE SAÍDA — responda APENAS com um JSON válido, sem markdown, sem texto antes ou
-depois, exatamente neste formato (um objeto com duas chaves):
-{{
-  "flashcards": [
-    {{"pergunta": "...", "resposta": "..."}}
-  ],
-  "sugestoes_tema": ["tema ainda não coberto 1", "tema ainda não coberto 2"]
-}}
+CLOZE_BLOCK = """FORMATO CLOZE (tipo "cloze") — oclusão no estilo Anki:
+- "texto": uma frase completa e verdadeira, com o termo-chave escondido na sintaxe {{c1::termo}}.
+- Esconda o que REALMENTE importa memorizar (o conceito-chave), não uma palavra trivial.
+- Idealmente UMA lacuna por ficha ({{c1::...}}); no máximo duas ({{c1::...}} e {{c2::...}}).
+- A frase precisa fazer sentido sozinha e a lacuna ter uma única resposta óbvia.
+Exemplos (tema diferente do texto abaixo, apenas para calibrar o padrão):
+[
+  {"tipo": "cloze", "texto": "Na dissecção de aorta tipo A, o tratamento de escolha é a {{c1::cirurgia de emergência}}."},
+  {"tipo": "cloze", "texto": "Na dissecção de aorta, administra-se um {{c1::betabloqueador}} antes do vasodilatador para controlar a frequência cardíaca."}
+]"""
 
-Em "sugestoes_tema", liste de 0 a 5 subtemas presentes ou diretamente relacionados à
-resolução que os flashcards acima NÃO cobriram e que valeriam estudo adicional. Use frases
-curtas (2 a 5 palavras). Se não houver nenhum, devolva uma lista vazia."""
+_OUTPUT_SKELETON = """FORMATO DE SAÍDA — responda APENAS com um JSON válido, sem markdown, sem texto
+antes ou depois, exatamente neste formato (um objeto):
+{
+  "flashcards": [ ...as fichas aqui... ],
+  "sugestoes_tema": ["tema ainda não coberto 1", "tema ainda não coberto 2"]
+}
+
+__TIPOS__
+Cada item de "flashcards" é um objeto no formato: __CARDS_DESC__
+
+Em "sugestoes_tema", liste de 0 a 5 subtemas presentes ou diretamente relacionados
+à resolução que as fichas acima NÃO cobriram e que valeriam estudo adicional. Use
+frases curtas (2 a 5 palavras). Se não houver nenhum, devolva uma lista vazia."""
+
+
+def _format_blocks(formato: str):
+    """Devolve (bloco_de_exemplos, instrução_de_tipos, descrição_do_card) conforme
+    o formato pedido: 'qa', 'cloze' ou 'ambos'."""
+    if formato == "cloze":
+        return (
+            CLOZE_BLOCK,
+            'Gere APENAS fichas do tipo "cloze".',
+            '{"tipo": "cloze", "texto": "frase com {{c1::termo escondido}}"}',
+        )
+    if formato == "ambos":
+        return (
+            QA_BLOCK + "\n\n" + CLOZE_BLOCK,
+            "Gere fichas dos DOIS tipos, escolhendo para cada fato o formato que memoriza melhor.",
+            '{"tipo": "qa", "pergunta": "...", "resposta": "..."}  OU  {"tipo": "cloze", "texto": "... {{c1::termo}} ..."}',
+        )
+    return (
+        QA_BLOCK,
+        'Gere APENAS fichas do tipo "qa".',
+        '{"tipo": "qa", "pergunta": "...", "resposta": "..."}',
+    )
 
 RESOLVE_PROMPT_TEMPLATE = """Você é um professor de medicina especialista em resolver questões de \
 provas de residência médica com raciocínio clínico explícito.
@@ -82,9 +118,10 @@ QUESTÃO:
 """
 
 
-def build_generate_prompt(resolucao: str, tema: str = "", existentes=None) -> str:
-    """Monta o prompt de geração, opcionalmente focando num tema e evitando
-    repetir perguntas que já existem (para o botão 'Gerar mais fichas')."""
+def build_generate_prompt(resolucao: str, tema: str = "", existentes=None, formato: str = "qa") -> str:
+    """Monta o prompt de geração. formato: 'qa' (pergunta/resposta), 'cloze'
+    (oclusão do Anki) ou 'ambos'. Opcionalmente foca num tema e evita repetir
+    fichas que já existem (para o botão 'Gerar mais fichas')."""
     parts = [PROMPT_HEADER]
 
     if tema:
@@ -94,27 +131,28 @@ def build_generate_prompt(resolucao: str, tema: str = "", existentes=None) -> st
         )
 
     existentes = existentes or []
-    perguntas_existentes = [
-        str(c.get("pergunta", "")).strip()
-        for c in existentes
-        if isinstance(c, dict) and str(c.get("pergunta", "")).strip()
-    ]
-    if perguntas_existentes:
-        lista = "\n".join(f"- {p}" for p in perguntas_existentes)
+    ja_existentes = []
+    for c in existentes:
+        if isinstance(c, dict):
+            val = str(c.get("pergunta", "")).strip() or str(c.get("texto", "")).strip()
+            if val:
+                ja_existentes.append(val)
+    if ja_existentes:
+        lista = "\n".join(f"- {p}" for p in ja_existentes)
         parts.append(
-            "AS PERGUNTAS ABAIXO JÁ EXISTEM. NÃO as repita nem crie variações equivalentes. "
+            "AS FICHAS ABAIXO JÁ EXISTEM. NÃO as repita nem crie variações equivalentes. "
             "Gere apenas fichas NOVAS e complementares (se não houver nada novo de qualidade, "
             "devolva uma lista de flashcards vazia):\n" + lista
         )
 
-    parts.append(PROMPT_EXAMPLE)
-    parts.append(PROMPT_OUTPUT)
+    exemplo_block, tipos_txt, cards_desc = _format_blocks(formato)
+    parts.append(exemplo_block)
+    parts.append(
+        _OUTPUT_SKELETON.replace("__TIPOS__", tipos_txt).replace("__CARDS_DESC__", cards_desc)
+    )
     parts.append('RESOLUÇÃO DA QUESTÃO:\n"""\n' + resolucao.strip() + '\n"""')
 
-    # PROMPT_EXAMPLE e PROMPT_OUTPUT usam chaves duplicadas ({{ }}) para poderem
-    # passar por .format() no passado; agora montamos por concatenação, então
-    # desfazemos o escape para o texto final enviado à IA.
-    return "\n\n".join(parts).replace("{{", "{").replace("}}", "}")
+    return "\n\n".join(parts)
 
 
 def build_resolve_prompt(questao: str) -> str:
@@ -161,8 +199,10 @@ def extract_json(text: str):
 
 
 def normalize_flashcards(raw) -> list:
-    """Aceita uma lista de cards e devolve apenas os com pergunta e resposta
-    não vazias."""
+    """Aceita uma lista de cards e devolve os válidos, com 'tipo' definido:
+    - qa:    {"tipo": "qa", "pergunta": ..., "resposta": ...}
+    - cloze: {"tipo": "cloze", "texto": ...}
+    Se o 'tipo' vier ausente, ele é inferido pelos campos presentes."""
     if not isinstance(raw, list):
         raw = []
 
@@ -170,10 +210,20 @@ def normalize_flashcards(raw) -> list:
     for card in raw:
         if not isinstance(card, dict):
             continue
+        tipo = str(card.get("tipo", "")).strip().lower()
+        texto = str(card.get("texto", "")).strip()
         pergunta = str(card.get("pergunta", "")).strip()
         resposta = str(card.get("resposta", "")).strip()
-        if pergunta and resposta:
-            cleaned.append({"pergunta": pergunta, "resposta": resposta})
+
+        if not tipo:
+            tipo = "cloze" if (texto and not (pergunta and resposta)) else "qa"
+
+        if tipo == "cloze":
+            if texto:
+                cleaned.append({"tipo": "cloze", "texto": texto})
+        else:
+            if pergunta and resposta:
+                cleaned.append({"tipo": "qa", "pergunta": pergunta, "resposta": resposta})
     return cleaned
 
 
@@ -306,6 +356,9 @@ def generate():
     provider = (data.get("provider") or "gemini").strip().lower()
     api_key = resolve_api_key(provider, (data.get("api_key") or "").strip())
     tema = (data.get("tema") or "").strip()
+    formato = (data.get("formato") or "qa").strip().lower()
+    if formato not in ("qa", "cloze", "ambos"):
+        formato = "qa"
     existentes = data.get("existentes") or []
     if not isinstance(existentes, list):
         existentes = []
@@ -317,7 +370,7 @@ def generate():
     if provider not in ("gemini", "deepseek"):
         return jsonify({"error": "Provedor de IA inválido."}), 400
 
-    prompt = build_generate_prompt(resolucao, tema=tema, existentes=existentes)
+    prompt = build_generate_prompt(resolucao, tema=tema, existentes=existentes, formato=formato)
     system = "Você responde apenas com JSON válido, sem markdown e sem texto extra."
 
     try:

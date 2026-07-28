@@ -358,6 +358,15 @@ button:focus-visible {
   background: var(--accent);
   color: #fff;
 }
+.card-type {
+  font-family: var(--font-mono);
+  font-size: 0.6rem;
+  padding: 0.05rem 0.4rem;
+  border-radius: 999px;
+  border: 1px solid var(--paper-deep);
+  color: var(--ink-soft);
+  margin-left: 0.4rem;
+}
 
 .card label {
   display: block;

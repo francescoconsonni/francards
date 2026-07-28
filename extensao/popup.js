@@ -1,27 +1,48 @@
 "use strict";
 
 // -------------------------------------------------------------------------
-// Regras de extração por site. AJUSTE AQUI depois de olhar o HTML real de uma
-// questão respondida no medcof (veja README-extensao.md, seção "Calibrar").
-// Cada lista é tentada na ordem; usa a primeira que devolver texto.
+// Regras de extração.
+//   RULES.sites   -> regras específicas por site (medcof calibrado; adicione
+//                    outros bancos copiando o bloco e trocando name/match/seletores).
+//   RULES.generic -> seletores comuns a muitos bancos; rodam em QUALQUER site
+//                    quando não há regra específica (ou ela não achou nada).
+// A seleção manual do usuário sempre tem prioridade sobre tudo isso.
+// Para calibrar um site novo, veja README-extensao.md, seção "Calibrar".
 // -------------------------------------------------------------------------
-const SITE_RULES = {
-  "qbank-prime.medcof.com.br": {
-    // Seções na ordem em que entram no texto final: enunciado -> alternativas
-    // (com o porquê de cada uma) -> comentário completo. Calibrado sobre o HTML
-    // real de uma questão respondida (classes do app React do medcof).
+const RULES = {
+  sites: [
+    {
+      name: "medcof",
+      match: ["qbank-prime.medcof.com.br", "medcof.com.br"],
+      // Seções na ordem: enunciado -> alternativas (com o porquê) -> comentário.
+      // Calibrado sobre o HTML real de uma questão respondida (app React do medcof).
+      sections: [
+        ["[class*='onboard-question-statement']", "[class*='question-statement']", "[class*='enunciado']"],
+        ["[class*='onboard-question-alternatives']", "[class*='answer-option']", "[class*='alternativ']"],
+        ["[class*='onboard-question-comments']", "[class*='comentario']", "[class*='explanation']", "[class*='gabarito']"],
+      ],
+      noise: [
+        "\\d+([.,]\\d+)?%\\s*escolheram(\\s+esta\\s+alternativa)?",
+        "Essa quest[\\u00e3a]o j[\\u00e1a] foi respondida[^\\n]*vezes",
+        "Links de artigo[^\\n]*",
+        "O que achou desse coment[\\u00e1a]rio[^\\n]*",
+        "Marca Texto",
+      ],
+    },
+  ],
+
+  // Genérico: tenta achar enunciado / alternativas / comentário por nomes de
+  // classe comuns em bancos de questões brasileiros. Não é perfeito, mas cobre
+  // muitos sites; quando erra, o usuário seleciona o texto na mão.
+  generic: {
     sections: [
-      ["[class*='onboard-question-statement']", "[class*='question-statement']", "[class*='enunciado']"],
-      ["[class*='onboard-question-alternatives']", "[class*='answer-option']", "[class*='alternativ']"],
-      ["[class*='onboard-question-comments']", "[class*='comentario']", "[class*='explanation']", "[class*='gabarito']"],
+      ["[class*='enunciado']", "[class*='statement']", "[class*='question-text']", "[class*='pergunta']", "[id*='enunciado']", "[id*='question']"],
+      ["[class*='alternativ']", "[class*='answer-option']", "[class*='option']", "[class*='choice']"],
+      ["[class*='coment']", "[class*='explanation']", "[class*='gabarito']", "[class*='resolucao']", "[class*='rationale']", "[class*='feedback']", "[class*='justif']"],
     ],
-    // Ruído da interface removido do texto final (contagens, votos, rótulos de UI).
     noise: [
       "\\d+([.,]\\d+)?%\\s*escolheram(\\s+esta\\s+alternativa)?",
       "Essa quest[\\u00e3a]o j[\\u00e1a] foi respondida[^\\n]*vezes",
-      "Links de artigo[^\\n]*",
-      "O que achou desse coment[\\u00e1a]rio[^\\n]*",
-      "Marca Texto",
     ],
   },
 };
@@ -73,7 +94,7 @@ async function capture() {
     const results = await chrome.scripting.executeScript({
       target: { tabId: tab.id },
       func: francardsExtract, // vem de extractor.js (mesmo escopo do popup)
-      args: [SITE_RULES],
+      args: [RULES],
     });
 
     const out = (results && results[0] && results[0].result) || { text: "", source: "" };

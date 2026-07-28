@@ -8,9 +8,12 @@
     apiKey: $("apiKey"),
     deckName: $("deckName"),
     tags: $("tags"),
+    formato: $("formato"),
     modelName: $("modelName"),
     frontField: $("frontField"),
     backField: $("backField"),
+    clozeModelName: $("clozeModelName"),
+    clozeField: $("clozeField"),
     ankiUrl: $("ankiUrl"),
     ankiApiKey: $("ankiApiKey"),
     resolucao: $("resolucao"),
@@ -46,9 +49,12 @@
       if (saved.apiKey) els.apiKey.value = saved.apiKey;
       if (saved.deckName) els.deckName.value = saved.deckName;
       if (saved.tags) els.tags.value = saved.tags;
+      if (saved.formato) els.formato.value = saved.formato;
       if (saved.modelName) els.modelName.value = saved.modelName;
       if (saved.frontField) els.frontField.value = saved.frontField;
       if (saved.backField) els.backField.value = saved.backField;
+      if (saved.clozeModelName) els.clozeModelName.value = saved.clozeModelName;
+      if (saved.clozeField) els.clozeField.value = saved.clozeField;
       if (saved.ankiUrl) els.ankiUrl.value = saved.ankiUrl;
       if (saved.ankiApiKey) els.ankiApiKey.value = saved.ankiApiKey;
     } catch (_) {
@@ -62,9 +68,12 @@
       apiKey: els.apiKey.value,
       deckName: els.deckName.value,
       tags: els.tags.value,
+      formato: els.formato.value,
       modelName: els.modelName.value,
       frontField: els.frontField.value,
       backField: els.backField.value,
+      clozeModelName: els.clozeModelName.value,
+      clozeField: els.clozeField.value,
       ankiUrl: els.ankiUrl.value,
       ankiApiKey: els.ankiApiKey.value,
     };
@@ -72,8 +81,9 @@
   }
 
   [
-    "provider", "apiKey", "deckName", "tags",
-    "modelName", "frontField", "backField", "ankiUrl", "ankiApiKey",
+    "provider", "apiKey", "deckName", "tags", "formato",
+    "modelName", "frontField", "backField", "clozeModelName", "clozeField",
+    "ankiUrl", "ankiApiKey",
   ].forEach((id) => els[id].addEventListener("change", saveSettings));
 
   // ------------------------------------------------------------------
@@ -269,13 +279,24 @@
 
     await ensureDeck(deckName);
 
-    const note = {
-      deckName,
-      modelName: els.modelName.value.trim() || "Basic",
-      fields: {
+    let modelName;
+    let fields;
+    if (card.tipo === "cloze") {
+      // Cloze usa um modelo de nota próprio (padrão do Anki: "Cloze", campo "Text").
+      modelName = els.clozeModelName.value.trim() || "Cloze";
+      fields = { [els.clozeField.value.trim() || "Text"]: card.texto };
+    } else {
+      modelName = els.modelName.value.trim() || "Basic";
+      fields = {
         [els.frontField.value.trim() || "Front"]: card.pergunta,
         [els.backField.value.trim() || "Back"]: card.resposta,
-      },
+      };
+    }
+
+    const note = {
+      deckName,
+      modelName,
+      fields,
       tags,
       options: {
         allowDuplicate: false,
@@ -306,10 +327,12 @@
     const provider = els.provider.value;
     const apiKey = els.apiKey.value.trim();
 
+    const formato = els.formato.value;
+
     const res = await fetch("/api/generate", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ resolucao, provider, api_key: apiKey, ...extra }),
+      body: JSON.stringify({ resolucao, provider, api_key: apiKey, formato, ...extra }),
     });
     const data = await res.json();
     if (!res.ok) throw new Error(data.error || `Erro ${res.status}`);
@@ -339,10 +362,18 @@
   }
 
   function collectCurrentCards() {
-    return Array.from(els.cardsGrid.querySelectorAll(".card")).map((el) => ({
+    return Array.from(els.cardsGrid.querySelectorAll(".card")).map((el) => cardFromEl(el));
+  }
+
+  function cardFromEl(el) {
+    if (el.dataset.tipo === "cloze") {
+      return { tipo: "cloze", texto: el.querySelector(".c-field").value.trim() };
+    }
+    return {
+      tipo: "qa",
       pergunta: el.querySelector(".q-field").value.trim(),
       resposta: el.querySelector(".a-field").value.trim(),
-    }));
+    };
   }
 
   async function generateMoreFlashcards(tema = null, { button = els.generateMoreBtn, originalLabel = "Gerar mais fichas" } = {}) {
@@ -436,36 +467,60 @@
   }
 
   function buildCardEl(card, index) {
+    const tipo = card.tipo === "cloze" ? "cloze" : "qa";
+
     const el = document.createElement("article");
     el.className = "card";
+    el.dataset.tipo = tipo;
 
     const serial = document.createElement("div");
     serial.className = "card-serial";
     const num = document.createElement("span");
     num.textContent = `Nº ${String(index + 1).padStart(2, "0")}`;
+    const typeTag = document.createElement("span");
+    typeTag.className = "card-type";
+    typeTag.textContent = tipo === "cloze" ? "cloze" : "P/R";
     const flag = document.createElement("span");
     flag.className = "card-flag";
     flag.textContent = "novo";
-    serial.append(num, flag);
-
-    const qLabel = document.createElement("label");
-    qLabel.textContent = "Pergunta";
-    const qField = document.createElement("textarea");
-    qField.className = "q-field";
-    qField.rows = 2;
-    qField.value = card.pergunta;
-    autoGrow(qField);
+    serial.append(num, typeTag, flag);
 
     const divider = document.createElement("hr");
     divider.className = "card-divider";
 
-    const aLabel = document.createElement("label");
-    aLabel.textContent = "Resposta";
-    const aField = document.createElement("textarea");
-    aField.className = "a-field";
-    aField.rows = 2;
-    aField.value = card.resposta;
-    autoGrow(aField);
+    let bodyEls;
+    let getCard;
+
+    if (tipo === "cloze") {
+      const cLabel = document.createElement("label");
+      cLabel.textContent = "Texto (o que estiver entre {{c1::…}} fica escondido)";
+      const cField = document.createElement("textarea");
+      cField.className = "c-field";
+      cField.rows = 3;
+      cField.value = card.texto || "";
+      autoGrow(cField);
+      bodyEls = [cLabel, cField];
+      getCard = () => ({ tipo: "cloze", texto: cField.value.trim() });
+    } else {
+      const qLabel = document.createElement("label");
+      qLabel.textContent = "Pergunta";
+      const qField = document.createElement("textarea");
+      qField.className = "q-field";
+      qField.rows = 2;
+      qField.value = card.pergunta || "";
+      autoGrow(qField);
+
+      const aLabel = document.createElement("label");
+      aLabel.textContent = "Resposta";
+      const aField = document.createElement("textarea");
+      aField.className = "a-field";
+      aField.rows = 2;
+      aField.value = card.resposta || "";
+      autoGrow(aField);
+
+      bodyEls = [qLabel, qField, divider, aLabel, aField];
+      getCard = () => ({ tipo: "qa", pergunta: qField.value.trim(), resposta: aField.value.trim() });
+    }
 
     const footer = document.createElement("div");
     footer.className = "card-footer";
@@ -484,13 +539,11 @@
     sendBtn.type = "button";
     sendBtn.textContent = "Enviar para o Anki";
 
-    sendBtn._sendAction = (opts) =>
-      sendSingleCard(sendBtn, flag, { pergunta: qField.value.trim(), resposta: aField.value.trim() }, opts);
-
+    sendBtn._sendAction = (opts) => sendSingleCard(sendBtn, flag, getCard(), opts);
     sendBtn.addEventListener("click", () => sendBtn._sendAction());
 
     footer.append(delBtn, sendBtn);
-    el.append(serial, qLabel, qField, divider, aLabel, aField, footer);
+    el.append(serial, ...bodyEls, footer);
     return el;
   }
 
@@ -504,7 +557,16 @@
   }
 
   async function sendSingleCard(button, flagEl, card, { sync = true } = {}) {
-    if (!card.pergunta || !card.resposta) {
+    if (card.tipo === "cloze") {
+      if (!card.texto) {
+        alert("O texto da ficha cloze não pode ficar vazio.");
+        return;
+      }
+      if (!/\{\{c\d+::/.test(card.texto)) {
+        alert("A ficha cloze precisa de ao menos uma lacuna no formato {{c1::...}}.");
+        return;
+      }
+    } else if (!card.pergunta || !card.resposta) {
       alert("Pergunta e resposta não podem ficar vazias.");
       return;
     }
@@ -561,29 +623,43 @@
     els.sendAllBtn.disabled = false;
   }
 
-  function downloadCardsAsText() {
-    const cardEls = Array.from(els.cardsGrid.querySelectorAll(".card"));
-    if (cardEls.length === 0) {
-      alert("Não há fichas geradas para baixar.");
-      return;
-    }
-
-    const lines = cardEls.map((el) => {
-      const pergunta = el.querySelector(".q-field").value.trim().replace(/\t/g, " ");
-      const resposta = el.querySelector(".a-field").value.trim().replace(/\t/g, " ");
-      return `${pergunta}\t${resposta}`;
-    });
-
-    const blob = new Blob([lines.join("\n")], { type: "text/plain;charset=utf-8" });
+  function downloadBlob(content, filename) {
+    const blob = new Blob([content], { type: "text/plain;charset=utf-8" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
-    const stamp = new Date().toISOString().slice(0, 19).replace(/[:T]/g, "-");
     a.href = url;
-    a.download = `fichas-${stamp}.txt`;
+    a.download = filename;
     document.body.appendChild(a);
     a.click();
     a.remove();
     URL.revokeObjectURL(url);
+  }
+
+  function downloadCardsAsText() {
+    const cards = collectCurrentCards();
+    if (cards.length === 0) {
+      alert("Não há fichas geradas para baixar.");
+      return;
+    }
+
+    const stamp = new Date().toISOString().slice(0, 19).replace(/[:T]/g, "-");
+    const clean = (s) => (s || "").replace(/\t/g, " ").replace(/\n/g, " ");
+
+    // Pergunta/Resposta e Cloze têm formatos de importação diferentes no Anki,
+    // então saem em arquivos separados quando os dois tipos existirem.
+    const qa = cards.filter((c) => c.tipo !== "cloze");
+    const cloze = cards.filter((c) => c.tipo === "cloze");
+
+    if (qa.length) {
+      const lines = qa.map((c) => `${clean(c.pergunta)}\t${clean(c.resposta)}`);
+      downloadBlob(lines.join("\n"), `fichas-${stamp}.txt`);
+    }
+    if (cloze.length) {
+      // Cabeçalho diz ao Anki para importar como Cloze (campo único "Text").
+      const header = "#notetype:Cloze\n#deck:" + (els.deckName.value.trim() || "Padrão") + "\n";
+      const lines = cloze.map((c) => clean(c.texto));
+      downloadBlob(header + lines.join("\n"), `fichas-cloze-${stamp}.txt`);
+    }
   }
 
   els.generateBtn.addEventListener("click", generateFlashcards);

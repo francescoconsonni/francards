@@ -63,6 +63,15 @@
             <span>Tags (separadas por espaço)</span>
             <input type="text" id="tags" placeholder="ex: cardio residencia" autocomplete="off" spellcheck="false">
           </label>
+
+          <label class="field">
+            <span>Formato das fichas</span>
+            <select id="formato">
+              <option value="qa">Pergunta e resposta</option>
+              <option value="cloze">Cloze (lacuna)</option>
+              <option value="ambos">Ambos</option>
+            </select>
+          </label>
         </div>
 
         <!-- Sub-accordion para avançado -->
@@ -80,6 +89,14 @@
             <label class="field">
               <span>Campo do verso</span>
               <input type="text" id="backField" value="Back" autocomplete="off" spellcheck="false">
+            </label>
+            <label class="field">
+              <span>Modelo de nota (cloze)</span>
+              <input type="text" id="clozeModelName" value="Cloze" autocomplete="off" spellcheck="false">
+            </label>
+            <label class="field">
+              <span>Campo do texto (cloze)</span>
+              <input type="text" id="clozeField" value="Text" autocomplete="off" spellcheck="false">
             </label>
             <label class="field">
               <span>Endereço do AnkiConnect</span>

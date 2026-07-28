@@ -25,12 +25,20 @@ def main():
         with sync_playwright() as p:
             browser = p.chromium.launch()
             page = browser.new_page()
+            # Só nos importam exceções reais de JavaScript (pageerror). Erros de
+            # rede (fontes do Google, sonda do AnkiConnect) são esperados no
+            # sandbox offline e não contam.
+            errors = []
+            page.on("pageerror", lambda e: errors.append(str(e)))
             page.goto(url, wait_until="networkidle")
             page.wait_for_timeout(400)
 
             value = page.eval_on_selector("#resolucao", "el => el.value")
             hash_after = page.evaluate("() => window.location.hash")
             status = page.eval_on_selector("#genStatus", "el => el.textContent")
+            formato_opts = page.eval_on_selector_all(
+                "#formato option", "els => els.map(o => o.value)"
+            )
             browser.close()
 
         ok = True
@@ -50,6 +58,20 @@ def main():
             print(f"WARN: status inesperado: {status!r}")
         else:
             print("PASS: mensagem de status exibida.")
+
+        if formato_opts == ["qa", "cloze", "ambos"]:
+            print("PASS: seletor de formato (qa/cloze/ambos) presente.")
+        else:
+            print(f"FAIL: opções de formato inesperadas: {formato_opts}")
+            ok = False
+
+        if errors:
+            print("FAIL: erros de JavaScript no carregamento:")
+            for e in errors:
+                print("  -", e)
+            ok = False
+        else:
+            print("PASS: página carregou sem erros de JavaScript.")
 
         sys.exit(0 if ok else 1)
     finally:

@@ -3,25 +3,31 @@
  * -------------------------------------------------------------------------
  * Função que roda DENTRO da página (injetada via chrome.scripting.executeScript).
  * Precisa ser autossuficiente: não pode depender de nada fora dela, por isso
- * recebe as regras de site por argumento.
+ * recebe as regras por argumento.
  *
- * Estratégia (a que você escolheu — "auto com fallback manual"):
- *   1. Se o usuário selecionou texto na página, usa a seleção (fallback manual,
- *      sempre confiável, funciona em qualquer site).
- *   2. Senão, usa as regras do site (ex.: medcof): junta, em ordem, as SEÇÕES
- *      definidas (enunciado -> alternativas -> comentário) e remove ruído.
- *   3. Senão, cai numa heurística: pega o maior bloco de texto da página.
+ * Estratégia (captura automática + fallback manual), em ordem:
+ *   1. Seleção do usuário — se ele marcou texto com o mouse, usa isso. Sempre
+ *      confiável, funciona em QUALQUER site.
+ *   2. Regras do site — se o site atual bate com uma regra específica (ex.: medcof),
+ *      junta as seções definidas (enunciado -> alternativas -> comentário).
+ *   3. Regra genérica — seletores comuns a muitos bancos de questões; roda em
+ *      qualquer site quando não há regra específica ou ela não achou nada.
+ *   4. Heurística — pega o maior bloco de texto da página.
  *
- * Formato de uma regra de site (veja SITE_RULES em popup.js):
+ * Formato do objeto `rules`:
  *   {
- *     sections: [ [seletores da seção 1], [seletores da seção 2], ... ],
- *     noise:    [ "regex string", ... ]   // opcional, removido do texto final
+ *     sites: [ { name, match, sections, noise }, ... ],
+ *     generic: { sections, noise }
  *   }
- * Em cada seção, tenta os seletores na ordem e usa o PRIMEIRO que tiver texto.
+ * - match: string ou lista de strings; casa se location.hostname contiver alguma.
+ * - sections: lista de "seções"; cada seção é uma lista de seletores CSS. Em
+ *   cada seção usa-se o PRIMEIRO seletor que retornar texto; as seções são
+ *   concatenadas na ordem.
+ * - noise: lista de regex (string) removidas do texto final.
  * -------------------------------------------------------------------------
  */
 
-function francardsExtract(siteRules) {
+function francardsExtract(rules) {
   const MAX = 15000;
 
   const clean = (s) =>
@@ -35,53 +41,70 @@ function francardsExtract(siteRules) {
 
   const textOf = (el) => (el && el.innerText ? el.innerText.trim() : "");
 
+  const sectionText = (selectors) => {
+    for (const sel of selectors || []) {
+      let joined = "";
+      let nodes;
+      try {
+        nodes = document.querySelectorAll(sel);
+      } catch (_) {
+        continue; // seletor inválido — pula
+      }
+      nodes.forEach((el) => {
+        const t = textOf(el);
+        if (t) joined += (joined ? "\n\n" : "") + t;
+      });
+      if (joined.trim()) return joined.trim();
+    }
+    return "";
+  };
+
+  const fromRule = (rule) => {
+    if (!rule) return "";
+    let combined = (rule.sections || []).map(sectionText).filter(Boolean).join("\n\n");
+    for (const rx of rule.noise || []) {
+      try {
+        combined = combined.replace(new RegExp(rx, "gi"), "");
+      } catch (_) {
+        /* regex inválida na config — ignora */
+      }
+    }
+    return clean(combined);
+  };
+
+  rules = rules || {};
+
   // 1) Seleção manual do usuário --------------------------------------------
   const selection = (window.getSelection && window.getSelection().toString()) || "";
   if (selection.trim().length >= 15) {
     return { text: clean(selection), source: "seleção manual" };
   }
 
-  // 2) Regras específicas do site -------------------------------------------
+  // 2) Regra específica do site ---------------------------------------------
   const host = location.hostname;
-  const ruleKey = Object.keys(siteRules || {}).find((k) => host.includes(k));
-  if (ruleKey) {
-    const rule = siteRules[ruleKey];
-
-    const sectionText = (selectors) => {
-      for (const sel of selectors || []) {
-        let joined = "";
-        document.querySelectorAll(sel).forEach((el) => {
-          const t = textOf(el);
-          if (t) joined += (joined ? "\n\n" : "") + t;
-        });
-        if (joined.trim()) return joined.trim();
-      }
-      return "";
-    };
-
-    let combined = (rule.sections || [])
-      .map(sectionText)
-      .filter(Boolean)
-      .join("\n\n");
-
-    for (const rx of rule.noise || []) {
-      try {
-        combined = combined.replace(new RegExp(rx, "gi"), "");
-      } catch (_) {
-        /* regex inválida na config — ignora e segue */
-      }
-    }
-
-    combined = clean(combined);
-    if (combined) {
-      return { text: combined, source: `auto (${ruleKey})` };
+  for (const site of rules.sites || []) {
+    const m = site.match;
+    const matched = Array.isArray(m) ? m.some((k) => host.includes(k)) : host.includes(m);
+    if (matched) {
+      const t = fromRule(site);
+      if (t) return { text: t, source: `auto (${site.name || host})` };
+      break; // o site casou mas não achou nada — cai para o genérico
     }
   }
 
-  // 3) Heurística: maior bloco de texto -------------------------------------
+  // 3) Regra genérica (qualquer site) ---------------------------------------
+  const generic = fromRule(rules.generic);
+  if (generic && generic.length >= 40) {
+    return { text: generic, source: "auto (genérico)" };
+  }
+
+  // 4) Heurística: maior bloco de texto -------------------------------------
+  const isNoise = (el) => /^(NAV|HEADER|FOOTER|ASIDE)$/.test(el.tagName);
   let best = document.querySelector("main, article, [role='main']");
   if (!best || textOf(best).length < 40) {
-    const candidates = Array.from(document.querySelectorAll("div, section"));
+    const candidates = Array.from(document.querySelectorAll("div, section")).filter(
+      (el) => !isNoise(el)
+    );
     best = candidates.reduce(
       (a, b) => (textOf(b).length > textOf(a).length ? b : a),
       document.body

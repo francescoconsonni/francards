@@ -80,8 +80,10 @@ escolher o provedor de IA, colar sua chave de API e gerar as fichas.
 ## 3. Como usar
 
 1. **Configuração**: escolha Gemini ou DeepSeek, cole sua chave de API,
-   defina o baralho de destino e tags opcionais. Isso fica salvo no seu
-   navegador (não é enviado a lugar nenhum além da chamada de geração).
+   defina o baralho de destino e tags opcionais. Escolha também o **formato
+   das fichas**: *Pergunta e resposta*, *Cloze* (lacuna no estilo Anki,
+   `{{c1::...}}`) ou *Ambos*. Isso fica salvo no seu navegador (não é enviado
+   a lugar nenhum além da chamada de geração).
 2. **Resolução da questão**: cole o texto completo da resolução (quanto mais
    raciocínio clínico explícito, melhores as fichas) e clique em **Gerar
    flashcards**.
@@ -92,8 +94,10 @@ escolher o provedor de IA, colar sua chave de API e gerar as fichas.
    existente no baralho) são detectadas pelo Anki e não são reenviadas.
 
 O modelo de nota padrão é `Basic` (campos `Front`/`Back`, o modelo padrão do
-Anki). Se você usa um modelo diferente ou um Anki com os campos renomeados,
-ajuste em **Avançado**.
+Anki). Fichas **cloze** usam o modelo `Cloze` (campo `Text`), que também já vem
+no Anki. Se você usa modelos diferentes ou com os campos renomeados, ajuste em
+**Avançado** (há campos separados para o modelo de pergunta/resposta e para o
+de cloze).
 
 ---
 

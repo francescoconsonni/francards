@@ -46,21 +46,61 @@ def deepseek_reply(text: str) -> dict:
 def test_extract_json_object_with_fences():
     raw = '```json\n{"flashcards": [{"pergunta": "P?", "resposta": "R"}], "sugestoes_tema": ["t1"]}\n```'
     parsed = appmod.parse_generation(appmod.extract_json(raw))
-    assert parsed["flashcards"] == [{"pergunta": "P?", "resposta": "R"}]
+    assert parsed["flashcards"] == [{"tipo": "qa", "pergunta": "P?", "resposta": "R"}]
     assert parsed["sugestoes_tema"] == ["t1"]
 
 
 def test_parse_generation_accepts_legacy_bare_array():
     raw = '[{"pergunta": "P?", "resposta": "R"}]'
     parsed = appmod.parse_generation(appmod.extract_json(raw))
-    assert parsed["flashcards"] == [{"pergunta": "P?", "resposta": "R"}]
+    assert parsed["flashcards"] == [{"tipo": "qa", "pergunta": "P?", "resposta": "R"}]
     assert parsed["sugestoes_tema"] == []
 
 
 def test_parse_generation_drops_empty_cards():
     raw = {"flashcards": [{"pergunta": "", "resposta": "R"}, {"pergunta": "P", "resposta": "R"}]}
     parsed = appmod.parse_generation(raw)
-    assert parsed["flashcards"] == [{"pergunta": "P", "resposta": "R"}]
+    assert parsed["flashcards"] == [{"tipo": "qa", "pergunta": "P", "resposta": "R"}]
+
+
+def test_cloze_prompt_keeps_double_braces():
+    prompt = appmod.build_generate_prompt("x" * 40, formato="cloze")
+    # a sintaxe do Anki precisa sobreviver: {{c1::...}} com chaves DUPLAS
+    assert "{{c1::" in prompt
+    assert "cloze" in prompt.lower()
+
+
+def test_normalize_accepts_cloze_and_infers_type():
+    raw = [
+        {"tipo": "cloze", "texto": "A febre amarela é causada por um {{c1::Flavivírus}}."},
+        {"texto": "Sem tipo mas com {{c1::lacuna}}."},        # infere cloze
+        {"pergunta": "P?", "resposta": "R"},                     # infere qa
+        {"tipo": "cloze", "texto": ""},                          # descartado
+    ]
+    out = appmod.normalize_flashcards(raw)
+    assert out[0] == {"tipo": "cloze", "texto": "A febre amarela é causada por um {{c1::Flavivírus}}."}
+    assert out[1]["tipo"] == "cloze"
+    assert out[2] == {"tipo": "qa", "pergunta": "P?", "resposta": "R"}
+    assert len(out) == 3
+
+
+@responses.activate
+def test_generate_cloze_format(client):
+    body = json.dumps(
+        {"flashcards": [{"tipo": "cloze", "texto": "O vetor urbano é o {{c1::Aedes aegypti}}."}],
+         "sugestoes_tema": []}
+    )
+    responses.add(responses.POST, GEMINI_RE, json=gemini_reply(body), status=200)
+    r = client.post(
+        "/api/generate",
+        json={"resolucao": "r" * 40, "provider": "gemini", "api_key": "k", "formato": "cloze"},
+    )
+    assert r.status_code == 200
+    card = r.get_json()["flashcards"][0]
+    assert card["tipo"] == "cloze"
+    assert "{{c1::" in card["texto"]
+    # e o prompt enviado pediu cloze
+    assert "{{c1::" in sent_prompt(responses.calls[0])
 
 
 def test_build_prompt_injects_tema_and_existentes():
@@ -89,7 +129,7 @@ def test_generate_initial_returns_cards_and_temas(client):
     r = client.post("/api/generate", json={"resolucao": "r" * 40, "provider": "gemini", "api_key": "k"})
     assert r.status_code == 200
     data = r.get_json()
-    assert data["flashcards"] == [{"pergunta": "P1?", "resposta": "R1"}]
+    assert data["flashcards"] == [{"tipo": "qa", "pergunta": "P1?", "resposta": "R1"}]
     assert data["sugestoes_tema"] == ["tema A"]
 
 
@@ -165,7 +205,7 @@ def test_generate_deepseek_path(client):
     responses.add(responses.POST, DEEPSEEK_URL, json=deepseek_reply(body), status=200)
     r = client.post("/api/generate", json={"resolucao": "r" * 40, "provider": "deepseek", "api_key": "k"})
     assert r.status_code == 200
-    assert r.get_json()["flashcards"] == [{"pergunta": "P?", "resposta": "R"}]
+    assert r.get_json()["flashcards"] == [{"tipo": "qa", "pergunta": "P?", "resposta": "R"}]
 
 
 # ---------------------------------------------------------------------------
