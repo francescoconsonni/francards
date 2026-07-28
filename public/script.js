@@ -90,6 +90,12 @@
     "ankiUrl", "ankiApiKey",
   ].forEach((id) => els[id].addEventListener("change", saveSettings));
 
+  // Ao mexer nos campos de modelo/campos/endereço do Anki, esquece o modelo
+  // detectado para redescobrir na próxima vez.
+  ["modelName", "frontField", "backField", "clozeModelName", "clozeField", "ankiUrl"].forEach(
+    (id) => els[id].addEventListener("change", () => { ankiTargetCache = {}; })
+  );
+
   // ------------------------------------------------------------------
   // Limpeza de conteúdo colado (tabelas/listas do OpenEvidence etc.)
   // ------------------------------------------------------------------
@@ -391,6 +397,45 @@
     await ankiRequest("createDeck", { deck: deckName });
   }
 
+  // Descobre, no Anki do usuário, qual modelo de nota usar e seus campos —
+  // funciona mesmo se o Anki estiver em português ("Básico", "Omissão de
+  // palavras") ou com modelos renomeados. Resultado fica em cache.
+  let ankiTargetCache = {};
+
+  async function resolveAnkiTarget(kind) {
+    if (ankiTargetCache[kind]) return ankiTargetCache[kind];
+
+    const models = await ankiRequest("modelNames"); // lista de nomes de modelos
+    const configured =
+      kind === "cloze" ? els.clozeModelName.value.trim() : els.modelName.value.trim();
+
+    let model = configured && models.includes(configured) ? configured : null;
+
+    if (!model && kind === "cloze") {
+      // modelo de cloze: nome contém "cloze" ou "omiss" (Omissão de palavras)
+      model = models.find((m) => /cloze|omiss/i.test(m)) || null;
+      if (!model) {
+        throw new Error(
+          "Não encontrei um modelo de nota Cloze no seu Anki (ex.: 'Cloze' ou " +
+            "'Omissão de palavras'). Verifique em Ferramentas → Gerenciar tipos de nota."
+        );
+      }
+    }
+    if (!model && kind !== "cloze") {
+      // modelo básico: prefere um "Basic/Básico", senão qualquer um que NÃO seja cloze
+      model =
+        models.find((m) => /basic|b[aá]sico|padr[aã]o/i.test(m)) ||
+        models.find((m) => !/cloze|omiss/i.test(m)) ||
+        models[0];
+      if (!model) throw new Error("Nenhum modelo de nota encontrado no seu Anki.");
+    }
+
+    const fieldNames = await ankiRequest("modelFieldNames", { modelName: model });
+    const target = { model, fieldNames };
+    ankiTargetCache[kind] = target;
+    return target;
+  }
+
   async function triggerAnkiSync() {
     const previousText = els.ankiStatus.textContent;
     const previousState = els.ankiStatus.dataset.state;
@@ -422,14 +467,23 @@
     let modelName;
     let fields;
     if (card.tipo === "cloze") {
-      // Cloze usa um modelo de nota próprio (padrão do Anki: "Cloze", campo "Text").
-      modelName = els.clozeModelName.value.trim() || "Cloze";
-      fields = { [els.clozeField.value.trim() || "Text"]: card.texto + imgHtml };
+      // Descobre o modelo de cloze real do Anki (funciona em PT/EN) e usa o
+      // campo configurado se existir, senão o primeiro campo do modelo.
+      const t = await resolveAnkiTarget("cloze");
+      const cfg = els.clozeField.value.trim();
+      const field = cfg && t.fieldNames.includes(cfg) ? cfg : t.fieldNames[0];
+      modelName = t.model;
+      fields = { [field]: card.texto + imgHtml };
     } else {
-      modelName = els.modelName.value.trim() || "Basic";
+      const t = await resolveAnkiTarget("basic");
+      const cfgF = els.frontField.value.trim();
+      const cfgB = els.backField.value.trim();
+      const front = cfgF && t.fieldNames.includes(cfgF) ? cfgF : t.fieldNames[0];
+      const back = cfgB && t.fieldNames.includes(cfgB) ? cfgB : t.fieldNames[1] || t.fieldNames[0];
+      modelName = t.model;
       fields = {
-        [els.frontField.value.trim() || "Front"]: card.pergunta + imgHtml,
-        [els.backField.value.trim() || "Back"]: card.resposta,
+        [front]: card.pergunta + imgHtml,
+        [back]: card.resposta,
       };
     }
 
@@ -727,6 +781,12 @@
       const msg = String(err.message || err);
       if (/duplicate/i.test(msg)) {
         alert("Este cartão já existe no baralho (duplicado) — não foi enviado novamente.");
+      } else if (/empty/i.test(msg)) {
+        alert(
+          "O Anki recusou a ficha como 'vazia'. Em fichas cloze isso quase sempre é o " +
+            "modelo/campo errado ou falta de lacuna. Confira: (1) a ficha tem {{c1::...}}; " +
+            "(2) existe um tipo de nota Cloze no seu Anki (em português: 'Omissão de palavras')."
+        );
       } else {
         alert(`Não foi possível enviar para o Anki: ${msg}`);
       }
