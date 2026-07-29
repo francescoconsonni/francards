@@ -91,6 +91,34 @@
     "ankiUrl", "ankiApiKey",
   ].forEach((id) => els[id].addEventListener("change", saveSettings));
 
+const THEME_KEY = "francards_theme";
+
+function applyTheme(theme) {
+  document.documentElement.setAttribute("data-theme", theme);
+  localStorage.setItem(THEME_KEY, theme);
+
+  if (els.themeToggle) {
+    els.themeToggle.textContent = theme === "dark" ? "☀️" : "🌙";
+    els.themeToggle.title =
+      theme === "dark" ? "Modo claro" : "Modo escuro";
+  }
+}
+
+function initTheme() {
+  const saved = localStorage.getItem(THEME_KEY);
+
+  if (saved === "dark" || saved === "light") {
+    applyTheme(saved);
+    return;
+  }
+
+  const prefersDark =
+    window.matchMedia &&
+    window.matchMedia("(prefers-color-scheme: dark)").matches;
+
+  applyTheme(prefersDark ? "dark" : "light");
+}
+
   // Ao mexer nos campos de modelo/campos/endereço do Anki, esquece o modelo
   // detectado para redescobrir na próxima vez.
   ["modelName", "frontField", "backField", "clozeModelName", "clozeField", "ankiUrl"].forEach(
@@ -910,6 +938,15 @@
     els.resolucao.scrollIntoView({ behavior: "smooth", block: "center" });
     els.resolucao.focus();
   }
+
+initTheme();
+
+els.themeToggle.addEventListener("click", () => {
+  const current =
+    document.documentElement.getAttribute("data-theme") || "light";
+
+  applyTheme(current === "dark" ? "light" : "dark");
+});
 
   loadSettings();
   applyHandoffFromHash();
