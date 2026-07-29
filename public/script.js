@@ -415,9 +415,13 @@ function initTheme() {
     try {
       await ankiRequest("version");
       els.ankiStatus.dataset.state = "ok";
+  els.ankiStatus.style.cursor="default";
+  els.ankiStatus.title="";
       els.ankiStatus.textContent = "AnkiConnect conectado";
     } catch (_) {
       els.ankiStatus.dataset.state = "error";
+  els.ankiStatus.style.cursor="pointer";
+  els.ankiStatus.title="Clique para tentar novamente";
       els.ankiStatus.textContent = "AnkiConnect não encontrado — abra o Anki";
     }
   }
@@ -948,7 +952,13 @@ els.themeToggle.addEventListener("click", () => {
   applyTheme(current === "dark" ? "light" : "dark");
 });
 
-  loadSettings();
+  
+els.ankiStatus.addEventListener("click", () => {
+  if (els.ankiStatus.dataset.state !== "error") return;
+  checkAnkiConnection();
+});
+
+loadSettings();
   applyHandoffFromHash();
   checkAnkiConnection();
   autoGrow(els.resolveResult);
