@@ -42,6 +42,7 @@
     temaInput: $("temaInput"),
     temaCustomBtn: $("temaCustomBtn"),
     ankiStatus: $("ankiStatus"),
+    themeToggle: $("themeToggle"),
   };
 
   const STORAGE_KEY = "flashcard_anki_settings_v1";
