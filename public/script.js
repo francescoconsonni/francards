@@ -422,7 +422,7 @@ function initTheme() {
       els.ankiStatus.dataset.state = "error";
   els.ankiStatus.style.cursor="pointer";
   els.ankiStatus.title="Clique para tentar novamente";
-      els.ankiStatus.textContent = "AnkiConnect não encontrado — abra o Anki";
+      els.ankiStatus.textContent = "AnkiConnect não encontrado";
     }
   }
 
