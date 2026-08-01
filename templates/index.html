@@ -38,7 +38,7 @@
     <section class="panel" id="configPanel">
       <details class="config-details">
         <summary class="panel-title">
-          </span> Configuração
+          <span class="idx">01</span> Configuração
         </summary>
 
         <div class="field-grid">
@@ -114,12 +114,12 @@
     </section>
 
     <section class="panel" id="inputPanel">
-      <h2 class="panel-title"></span> Resolução da questão</h2>
+      <h2 class="panel-title"><span class="idx">02</span> Resolução da questão</h2>
 
       <details class="advanced resolve-details">
         <summary>🧠 Não tem uma resolução pronta? Peça para a IA resolver a questão</summary>
         <div class="resolve-body">
-          <p class="hint">Usa o mesmo provedor e a mesma chave de API configurados na seção de configuração acima.</p>
+          <p class="hint">Usa o mesmo provedor e a mesma chave de API configurados na seção 01 acima.</p>
           <label class="field">
             <span>Cole aqui o enunciado da questão (com alternativas, se houver)</span>
             <textarea id="questaoInput" rows="6" placeholder="Cole o enunciado completo da questão, incluindo as alternativas…"></textarea>
@@ -185,9 +185,11 @@
       <div class="temas-custom">
         <label class="field temas-custom-field">
           <span>Ou peça fichas sobre um tema específico</span>
-          <input type="text" id="temaInput" placeholder="ex: farmacocinética do fármaco, diagnóstico diferencial…" autocomplete="off" spellcheck="false">
+          <div class="temas-input-row">
+            <input type="text" id="temaInput" placeholder="ex: farmacocinética do fármaco, diagnóstico diferencial…" autocomplete="off" spellcheck="false">
+            <button id="temaCustomBtn" class="btn-tema-submit" type="button">Gerar ↵</button>
+          </div>
         </label>
-        <button id="temaCustomBtn" class="btn-secondary" type="button">Gerar sobre esse tema</button>
       </div>
     </section>
   </main>
