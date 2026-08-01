@@ -277,6 +277,41 @@ button:focus-visible {
 }
 .btn-secondary:hover:not(:disabled) { background: var(--paper-deep); }
 
+/* Botão laranja — usado no OpenEvidence */
+.btn-orange {
+  background: #c95e00;
+  color: #fff;
+  border-color: transparent;
+}
+.btn-orange:hover:not(:disabled) { background: #a84d00; }
+
+/* Botão flutuante de configuração — visível apenas no modo PWA (standalone) */
+#configFab {
+  display: none;
+  position: fixed;
+  bottom: 1.4rem;
+  right: 1.4rem;
+  z-index: 900;
+  width: 3.2rem;
+  height: 3.2rem;
+  border-radius: 50%;
+  background: var(--accent-deep);
+  color: var(--paper);
+  border: none;
+  font-size: 1.3rem;
+  cursor: pointer;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.28);
+  align-items: center;
+  justify-content: center;
+  transition: background 0.15s;
+}
+#configFab:hover { background: var(--accent); }
+
+/* Mostra o FAB apenas quando rodando como PWA instalada */
+@media (display-mode: standalone) {
+  #configFab { display: flex; }
+}
+
 .btn-ghost {
   background: transparent;
   color: var(--ink-soft);
