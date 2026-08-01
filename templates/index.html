@@ -1,3 +1,92 @@
+Skip to content
+francescoconsonni
+francards
+Repository navigation
+Code
+Issues
+Pull requests
+Agents
+Actions
+Projects
+Security and quality
+Insights
+Settings
+Files
+Go to file
+t
+T
+extensao
+public
+templates
+index.html
+.env
+.env.example
+.gitignore
+MedCof _ Qbank.html
+README.md
+app.py
+make_screenshot.py
+medcof-exemplo.html
+requirements.txt
+test_app.py
+test_extractor.py
+test_handoff.py
+vercel.json
+francards/templates
+/
+index.html
+in
+main
+
+Edit
+
+Preview
+Indent mode
+
+Spaces
+Indent size
+
+2
+Line wrap mode
+
+No wrap
+Editing index.html file contents
+  1
+  2
+  3
+  4
+  5
+  6
+  7
+  8
+  9
+ 10
+ 11
+ 12
+ 13
+ 14
+ 15
+ 16
+ 17
+ 18
+ 19
+ 20
+ 21
+ 22
+ 23
+ 24
+ 25
+ 26
+ 27
+ 28
+ 29
+ 30
+ 31
+ 32
+ 33
+ 34
+ 35
+ 36
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
@@ -34,173 +123,4 @@
   </header>
 
   <main>
-    <!-- CONFIGURAÇÃO AGORA É UM MENU SUSPENSO -->
-    <section class="panel" id="configPanel">
-      <details class="config-details">
-        <summary class="panel-title">
-          <span class="idx">01</span> Configuração
-        </summary>
-
-        <div class="field-grid">
-          <label class="field">
-            <span>Provedor de IA</span>
-            <select id="provider">
-              <option value="gemini">Gemini</option>
-              <option value="deepseek">Deepseek</option>
-            </select>
-          </label>
-
-          <label class="field">
-            <span>Chave de API</span>
-            <input type="password" id="apiKey" placeholder="cole sua chave aqui" autocomplete="off" spellcheck="false">
-          </label>
-
-          <label class="field">
-            <span>Baralho no Anki</span>
-            <input type="text" id="deckName" value="Flashcards Automáticos" autocomplete="off" spellcheck="false">
-          </label>
-
-          <label class="field">
-            <span>Tags (separadas por espaço)</span>
-            <input type="text" id="tags" placeholder="ex: cardio residencia" autocomplete="off" spellcheck="false">
-          </label>
-
-          <label class="field">
-            <span>Formato das fichas</span>
-            <select id="formato">
-              <option value="qa">Pergunta e resposta</option>
-              <option value="cloze">Cloze (lacuna)</option>
-              <option value="ambos">Ambos</option>
-            </select>
-          </label>
-        </div>
-
-        <!-- Sub-accordion para avançado -->
-        <details class="advanced">
-          <summary>Avançado — modelo de nota e endereço do AnkiConnect</summary>
-          <div class="field-grid">
-            <label class="field">
-              <span>Modelo de nota</span>
-              <input type="text" id="modelName" value="Basic" autocomplete="off" spellcheck="false">
-            </label>
-            <label class="field">
-              <span>Campo da frente</span>
-              <input type="text" id="frontField" value="Front" autocomplete="off" spellcheck="false">
-            </label>
-            <label class="field">
-              <span>Campo do verso</span>
-              <input type="text" id="backField" value="Back" autocomplete="off" spellcheck="false">
-            </label>
-            <label class="field">
-              <span>Modelo de nota (cloze)</span>
-              <input type="text" id="clozeModelName" value="Cloze" autocomplete="off" spellcheck="false">
-            </label>
-            <label class="field">
-              <span>Campo do texto (cloze)</span>
-              <input type="text" id="clozeField" value="Text" autocomplete="off" spellcheck="false">
-            </label>
-            <label class="field">
-              <span>Endereço do AnkiConnect</span>
-              <input type="text" id="ankiUrl" value="https://jarvis-lenovo.tail5a31ce.ts.net/" autocomplete="off" spellcheck="false">
-            </label>
-            <label class="field">
-              <span>Chave do AnkiConnect</span>
-              <input type="password" id="ankiApiKey" placeholder="deixe em branco se não usar" autocomplete="off" spellcheck="false">
-            </label>
-          </div>
-          <p class="hint">Deixe o padrão se você acessa esta página pelo mesmo computador onde o Anki está aberto. Para usar de outros aparelhos, veja o README sobre Tailscale Serve (só seus aparelhos) ou Tailscale Funnel (qualquer aparelho, exige a chave acima configurada por segurança).</p>
-        </details>
-      </details>
-    </section>
-
-    <section class="panel" id="inputPanel">
-      <h2 class="panel-title"><span class="idx">02</span> Resolução da questão</h2>
-
-      <details class="advanced resolve-details">
-        <summary>🧠 Não tem uma resolução pronta? Peça para a IA resolver a questão</summary>
-        <div class="resolve-body">
-          <p class="hint">Usa o mesmo provedor e a mesma chave de API configurados na seção 01 acima.</p>
-          <label class="field">
-            <span>Cole aqui o enunciado da questão (com alternativas, se houver)</span>
-            <textarea id="questaoInput" rows="6" placeholder="Cole o enunciado completo da questão, incluindo as alternativas…"></textarea>
-          </label>
-          <div class="actions">
-            <button id="resolveBtn" class="btn-secondary" type="button">Pedir resolução à IA</button>
-            <span id="resolveStatus" class="inline-status" role="status" aria-live="polite"></span>
-          </div>
-
-          <div id="resolveResultWrap" class="resolve-result-wrap" hidden>
-            <label class="field">
-              <span>Resolução gerada — revise antes de usar</span>
-              <textarea id="resolveResult" rows="8"></textarea>
-            </label>
-            <div class="actions">
-              <button id="useResolutionBtn" class="btn-primary" type="button">Usar esta resolução ↓</button>
-            </div>
-          </div>
-        </div>
-      </details>
-
-      <textarea id="resolucao" rows="11" placeholder="Cole aqui a resolução completa da questão — quanto mais raciocínio clínico explicado, melhores as fichas."></textarea>
-
-      <!-- Área de imagem: ECG, radiografia, foto clínica etc. -->
-      <div id="imageZone" class="image-zone" tabindex="0">
-        <div class="image-zone-hint">
-          <span class="image-zone-icon">🖼️</span>
-          <span>Arraste uma imagem aqui, <label for="imageInput" class="image-zone-link">escolha um arquivo</label> ou cole (Ctrl+V) uma figura da questão — ECG, raio-x, foto.</span>
-          <input type="file" id="imageInput" accept="image/*" multiple hidden>
-        </div>
-        <div id="imageThumbs" class="image-thumbs"></div>
-      </div>
-      <label class="image-attach">
-        <input type="checkbox" id="attachImages">
-        <span>Anexar a imagem também nas fichas enviadas ao Anki</span>
-      </label>
-
-      <div class="actions">
-        <button id="pasteBtn" class="btn-secondary" type="button">📋 Colar</button>
-        <button id="openEvidenceBtn" class="btn-orange" type="button">↗ Abrir OpenEvidence</button>
-        <button id="generateBtn" class="btn-primary">Gerar flashcards</button>
-        <span id="genStatus" class="inline-status" role="status" aria-live="polite"></span>
-      </div>
-      <p class="hint">Clicar em "Gerar flashcards" de novo substitui tudo do zero. Depois de gerar, use "Gerar mais fichas" (lá embaixo) para pedir fichas adicionais sem perder as que já existem. Tabelas e textos formatados colados aqui (ex: do OpenEvidence) são limpos automaticamente.</p>
-    </section>
-
-    <section class="panel" id="resultsPanel" hidden>
-      <div class="results-header">
-        <h2 class="panel-title"><span class="idx">03</span> <span id="drawerLabel">Fichas geradas</span></h2>
-        <div class="results-buttons">
-          <button id="generateMoreBtn" class="btn-secondary">Gerar mais fichas</button>
-          <button id="downloadBtn" class="btn-secondary">Baixar fichas (.txt)</button>
-          <button id="sendAllBtn" class="btn-secondary">Enviar todas para o Anki</button>
-        </div>
-      </div>
-      <div id="cardsGrid" class="cards-grid"></div>
-
-      <div id="temasPanel" class="temas-panel" hidden>
-        <p class="temas-label">Sugestões de temas ainda não cobertos:</p>
-        <div id="temasChips" class="temas-chips"></div>
-      </div>
-
-      <div class="temas-custom">
-        <label class="field temas-custom-field">
-          <span>Ou peça fichas sobre um tema específico</span>
-          <input type="text" id="temaInput" placeholder="ex: farmacocinética do fármaco, diagnóstico diferencial…" autocomplete="off" spellcheck="false">
-        </label>
-        <button id="temaCustomBtn" class="btn-secondary" type="button">Gerar sobre esse tema</button>
-      </div>
-    </section>
-  </main>
-
-  <footer>
-    <p>As fichas vão do seu navegador direto para o AnkiConnect — a resolução passa pelo servidor apenas para chamar a IA, e nada é armazenado.</p>
-  </footer>
-
-</div>
-
-<!-- Botão flutuante de configuração — visível só quando instalado como PWA -->
-<button id="configFab" type="button" title="Configuração (⚙️)">⚙️</button>
-
-<script src="/script.js"></script>
-</body>
-</html>
+Use Control + Shift + m to toggle the tab key moving focus. Alternatively, use esc then tab to move to the next interactive element on the page.
