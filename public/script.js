@@ -43,6 +43,8 @@
     temaCustomBtn: $("temaCustomBtn"),
     ankiStatus: $("ankiStatus"),
     themeToggle: $("themeToggle"),
+    configDetails: $("configPanel").querySelector("details.config-details"),
+    configFab: $("configFab"),
   };
 
   const STORAGE_KEY = "flashcard_anki_settings_v1";
@@ -913,6 +915,32 @@ function initTheme() {
   });
   els.resolveBtn.addEventListener("click", resolveQuestion);
   els.useResolutionBtn.addEventListener("click", useGeneratedResolution);
+
+  // ------------------------------------------------------------------
+  // Atalho Ctrl+U — abre/fecha o painel de Configuração (desktop)
+  // ------------------------------------------------------------------
+  document.addEventListener("keydown", (e) => {
+    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "u") {
+      // Não intercepta se o foco estiver num campo de texto
+      const tag = document.activeElement?.tagName;
+      if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return;
+      e.preventDefault();
+      const d = els.configDetails;
+      d.open = !d.open;
+      if (d.open) d.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+  });
+
+  // ------------------------------------------------------------------
+  // FAB de configuração — visível só no modo PWA (standalone)
+  // ------------------------------------------------------------------
+  if (els.configFab) {
+    els.configFab.addEventListener("click", () => {
+      const d = els.configDetails;
+      d.open = !d.open;
+      if (d.open) d.scrollIntoView({ behavior: "smooth", block: "start" });
+    });
+  }
 
   // ------------------------------------------------------------------
   // Recepção de conteúdo vindo da extensão do Chrome (handoff via #fc=...)
