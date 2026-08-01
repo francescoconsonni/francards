@@ -43,7 +43,6 @@
     temaCustomBtn: $("temaCustomBtn"),
     ankiStatus: $("ankiStatus"),
     themeToggle: $("themeToggle"),
-    configDetails: $("configPanel").querySelector("details.config-details"),
     configFab: $("configFab"),
   };
 
@@ -334,6 +333,11 @@ function initTheme() {
       imgs.forEach(addImageFile);
     }
   });
+  // Clique direto na zona (fora do label) também abre o file picker
+  els.imageZone.addEventListener("click", (e) => {
+    if (e.target.closest("label.image-zone-link")) return;
+    els.imageInput.click();
+  });
   els.imageInput.addEventListener("change", () => {
     Array.from(els.imageInput.files || []).forEach(addImageFile);
     els.imageInput.value = "";
@@ -489,21 +493,15 @@ function initTheme() {
     }, 4000);
   }
 
-  async function sendCardToAnki(card) {
+  async function sendCardToAnki(card, imgHtml = "") {
     const deckName = els.deckName.value.trim() || "Padrão";
     const tags = els.tags.value.trim().split(/\s+/).filter(Boolean);
 
     await ensureDeck(deckName);
 
-    // Se o usuário pediu para anexar a imagem, guarda a mídia no Anki e monta o
-    // <img> uma única vez (reaproveitado em todas as fichas).
-    const imgHtml = await imagesHtmlForAnki();
-
     let modelName;
     let fields;
     if (card.tipo === "cloze") {
-      // Descobre o modelo de cloze real do Anki (funciona em PT/EN) e usa o
-      // campo configurado se existir, senão o primeiro campo do modelo.
       const t = await resolveAnkiTarget("cloze");
       const cfg = els.clozeField.value.trim();
       const field = cfg && t.fieldNames.includes(cfg) ? cfg : t.fieldNames[0];
@@ -518,7 +516,7 @@ function initTheme() {
       modelName = t.model;
       fields = {
         [front]: card.pergunta + imgHtml,
-        [back]: card.resposta,
+        [back]: card.resposta + imgHtml,   // imagem aparece no verso também
       };
     }
 
@@ -805,7 +803,8 @@ function initTheme() {
     button.textContent = "Enviando…";
 
     try {
-      await sendCardToAnki(card);
+      const imgHtml = await imagesHtmlForAnki();
+      await sendCardToAnki(card, imgHtml);
       button.textContent = "Enviado ✓";
       button.dataset.sent = "true";
       flagEl.textContent = "enviado";
@@ -917,29 +916,25 @@ function initTheme() {
   els.useResolutionBtn.addEventListener("click", useGeneratedResolution);
 
   // ------------------------------------------------------------------
-  // Atalho Ctrl+U — abre/fecha o painel de Configuração (desktop)
+  // Painel de configuração — oculto por padrão, toggle via Ctrl+U / FAB
   // ------------------------------------------------------------------
+  function toggleConfig() {
+    const panel = document.getElementById("configPanel");
+    const visible = panel.classList.toggle("config-visible");
+    if (visible) panel.scrollIntoView({ behavior: "smooth", block: "start" });
+  }
+
   document.addEventListener("keydown", (e) => {
     if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "u") {
-      // Não intercepta se o foco estiver num campo de texto
       const tag = document.activeElement?.tagName;
       if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return;
       e.preventDefault();
-      const d = els.configDetails;
-      d.open = !d.open;
-      if (d.open) d.scrollIntoView({ behavior: "smooth", block: "start" });
+      toggleConfig();
     }
   });
 
-  // ------------------------------------------------------------------
-  // FAB de configuração — visível só no modo PWA (standalone)
-  // ------------------------------------------------------------------
   if (els.configFab) {
-    els.configFab.addEventListener("click", () => {
-      const d = els.configDetails;
-      d.open = !d.open;
-      if (d.open) d.scrollIntoView({ behavior: "smooth", block: "start" });
-    });
+    els.configFab.addEventListener("click", toggleConfig);
   }
 
   // ------------------------------------------------------------------
