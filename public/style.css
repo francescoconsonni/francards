@@ -452,6 +452,112 @@ button:focus-visible {
   margin-top: 0.9rem;
 }
 
+/* ---------- Painel de configuração — oculto por padrão, revelado via JS ---------- */
+
+#configPanel {
+  display: none;
+}
+#configPanel.config-visible {
+  display: block;
+}
+
+/* ---------- Zona de imagem ---------- */
+
+.image-zone {
+  margin-top: 1rem;
+  border: 1.5px dashed var(--line);
+  border-radius: 8px;
+  padding: 0.9rem 1rem;
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s;
+  background: var(--paper);
+  position: relative;
+}
+.image-zone:hover,
+.image-zone:focus-visible {
+  border-color: var(--accent);
+  background: var(--paper-deep);
+  outline: none;
+}
+.image-zone.dragover {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 8%, var(--paper));
+}
+.image-zone.has-images .image-zone-hint { display: none; }
+
+.image-zone-hint {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  color: var(--ink-soft);
+  font-size: 0.82rem;
+  line-height: 1.4;
+  pointer-events: none;
+}
+.image-zone-hint label.image-zone-link {
+  pointer-events: all;
+  color: var(--accent);
+  cursor: pointer;
+  text-decoration: underline;
+  font-size: inherit;
+}
+.image-zone-icon { font-size: 1.3rem; flex-shrink: 0; }
+
+.image-thumbs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+}
+.image-thumb {
+  position: relative;
+  border-radius: 6px;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  flex-shrink: 0;
+}
+.image-thumb img {
+  display: block;
+  width: auto;
+  max-width: 160px;
+  max-height: 110px;
+  object-fit: cover;
+}
+.image-thumb-remove {
+  position: absolute;
+  top: 3px;
+  right: 3px;
+  width: 1.4rem;
+  height: 1.4rem;
+  border-radius: 50%;
+  background: rgba(0,0,0,0.55);
+  color: #fff;
+  border: none;
+  font-size: 0.75rem;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  transition: background 0.12s;
+}
+.image-thumb-remove:hover { background: var(--flag); }
+
+.image-attach {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.82rem;
+  color: var(--ink-soft);
+  margin-top: 0.55rem;
+  cursor: pointer;
+}
+.image-attach input[type="checkbox"] {
+  width: auto;
+  margin: 0;
+  accent-color: var(--accent);
+  cursor: pointer;
+}
+
 /* ---------- Footer ---------- */
 
 footer {
