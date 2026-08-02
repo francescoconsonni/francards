@@ -898,6 +898,14 @@ function initTheme() {
   }
 
   els.generateBtn.addEventListener("click", generateFlashcards);
+
+  // Ctrl+Enter (ou Cmd+Enter no Mac) no campo de resolução dispara a geração.
+  els.resolucao.addEventListener("keydown", (e) => {
+    if ((e.ctrlKey || e.metaKey) && e.key === "Enter") {
+      e.preventDefault();
+      generateFlashcards();
+    }
+  });
   els.generateMoreBtn.addEventListener("click", () => generateMoreFlashcards());
   els.sendAllBtn.addEventListener("click", sendAllCards);
   els.downloadBtn.addEventListener("click", downloadCardsAsText);
@@ -966,6 +974,23 @@ function initTheme() {
     els.resolucao.focus();
   }
 
+  // ------------------------------------------------------------------
+  // Recepção de conteúdo vindo do Android Share Target (PWA instalado).
+  // O servidor Flask injeta window.__sharedText quando o usuário
+  // compartilha texto pelo menu "Enviar para" do Android.
+  // ------------------------------------------------------------------
+  function applySharedText() {
+    const texto = (typeof window.__sharedText === "string" ? window.__sharedText : "").trim();
+    if (!texto) return;
+    insertTextInResolucao(texto, { replace: true });
+    setGenStatus("Resolução importada via compartilhamento — revise e clique em Gerar flashcards.", "ok");
+    els.resolucao.scrollIntoView({ behavior: "smooth", block: "center" });
+    els.resolucao.focus();
+    // Limpa para evitar reaplicação num possível reload do histórico.
+    try { window.__sharedText = ""; } catch (_) {}
+  }
+
+
 initTheme();
 
 els.themeToggle.addEventListener("click", () => {
@@ -983,6 +1008,7 @@ els.ankiStatus.addEventListener("click", () => {
 
 loadSettings();
   applyHandoffFromHash();
+  applySharedText();
   checkAnkiConnection();
   autoGrow(els.resolveResult);
   els.resolucao.focus();

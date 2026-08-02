@@ -163,7 +163,7 @@
         <button id="generateBtn" class="btn-primary">Gerar flashcards</button>
         <span id="genStatus" class="inline-status" role="status" aria-live="polite"></span>
       </div>
-      <p class="hint">Clicar em "Gerar flashcards" de novo substitui tudo do zero. Depois de gerar, use "Gerar mais fichas" (lá embaixo) para pedir fichas adicionais sem perder as que já existem. Tabelas e textos formatados colados aqui (ex: do OpenEvidence) são limpos automaticamente.</p>
+      <p class="hint">Clicar em "Gerar flashcards" de novo substitui tudo do zero. Depois de gerar, use "Gerar mais fichas" (lá embaixo) para pedir fichas adicionais sem perder as que já existem. Tabelas e textos formatados colados aqui (ex: do OpenEvidence) são limpos automaticamente. <kbd>Ctrl+Enter</kbd> gera direto do teclado.</p>
     </section>
 
     <section class="panel" id="resultsPanel" hidden>
@@ -202,6 +202,10 @@
 
 <!-- Botão flutuante de configuração — visível só quando instalado como PWA -->
 <button id="configFab" type="button" title="Configuração (⚙️)">⚙️</button>
+
+{% if shared_text %}
+<script>window.__sharedText = {{ shared_text | tojson }};</script>
+{% endif %}
 
 <script src="/script.js"></script>
 </body>

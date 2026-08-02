@@ -10,6 +10,30 @@ load_dotenv()  # lê o arquivo .env na raiz do projeto, se existir (só localmen
 
 app = Flask(__name__, static_folder="public", static_url_path="")
 
+
+@app.after_request
+def add_cors_headers(response):
+    """Permite que a extensão Chrome chame /api/* diretamente do popup.
+    Só libera para extensões Chrome (chrome-extension://) e origens locais;
+    em produção o Vercel serve os headers corretos automaticamente."""
+    origin = request.headers.get("Origin", "")
+    if origin.startswith("chrome-extension://") or origin in ("", "null"):
+        response.headers["Access-Control-Allow-Origin"] = origin or "*"
+        response.headers["Access-Control-Allow-Methods"] = "GET, POST, OPTIONS"
+        response.headers["Access-Control-Allow-Headers"] = "Content-Type"
+    return response
+
+
+@app.route("/api/<path:path>", methods=["OPTIONS"])
+def api_options(path):
+    """Responde ao preflight CORS das requisições da extensão."""
+    response = app.make_default_options_response()
+    response.headers["Access-Control-Allow-Origin"] = request.headers.get("Origin", "*")
+    response.headers["Access-Control-Allow-Methods"] = "POST, OPTIONS"
+    response.headers["Access-Control-Allow-Headers"] = "Content-Type"
+    return response
+
+
 # A Google aposenta modelos do Gemini com frequência. Tentamos o mais atual
 # primeiro e, se ele não existir mais (404), caímos para o próximo da lista.
 GEMINI_MODELS = ["gemini-3.6-flash", "gemini-2.5-flash", "gemini-flash-latest", "gemini-3.5-flash-lite"]
@@ -374,6 +398,16 @@ def resolve_api_key(provider: str, api_key: str) -> str:
 @app.route("/")
 def index():
     return render_template("index.html")
+
+
+@app.route("/share", methods=["POST"])
+def share():
+    """Web Share Target: recebe texto compartilhado pelo Android (PWA instalado).
+    O manifest.json já aponta para cá com method=POST e params.text='text'.
+    Renderizamos a mesma página principal injetando o texto via variável de template.
+    """
+    text = (request.form.get("text") or "").strip()
+    return render_template("index.html", shared_text=text)
 
 
 @app.route("/api/generate", methods=["POST"])
