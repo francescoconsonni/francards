@@ -395,6 +395,55 @@ def resolve_api_key(provider: str, api_key: str) -> str:
 # ---------------------------------------------------------------------------
 
 
+@app.route("/api/anki-proxy", methods=["POST"])
+def anki_proxy():
+    """Repassa uma chamada do AnkiConnect servidor-a-servidor.
+
+    A extensão Chrome não consegue chamar o AnkiConnect diretamente porque
+    ele não libera CORS pra origens chrome-extension://. Este endpoint
+    resolve isso: o navegador chama ESTE servidor (que tem CORS liberado,
+    veja add_cors_headers acima), e o servidor chama o AnkiConnect por fora,
+    sem qualquer restrição de CORS (isso só existe no navegador).
+    """
+    payload = request.get_json(silent=True) or {}
+
+    anki_url = (payload.get("anki_url") or "").strip().rstrip("/")
+    anki_api_key = (payload.get("anki_api_key") or "").strip()
+    action = payload.get("action")
+    params = payload.get("params") or {}
+
+    if not anki_url:
+        return jsonify({"error": "Endereço do AnkiConnect não informado."}), 400
+    if not action:
+        return jsonify({"error": "Ação do AnkiConnect não informada."}), 400
+
+    body = {"action": action, "version": 6, "params": params}
+    if anki_api_key:
+        body["key"] = anki_api_key
+
+    try:
+        resp = requests.post(anki_url, json=body, timeout=20)
+    except requests.RequestException as exc:
+        return jsonify({
+            "error": f"Não foi possível conectar ao AnkiConnect em {anki_url}: {exc}"
+        }), 502
+
+    try:
+        data = resp.json()
+    except ValueError:
+        return jsonify({
+            "error": f"Resposta inválida do AnkiConnect (status HTTP {resp.status_code})."
+        }), 502
+
+    # Erros "de negócio" do AnkiConnect (ex: nota duplicada, deck inexistente)
+    # voltam com HTTP 200 e {"error": "..."} — é assim que o popup.js já
+    # espera receber (data.error), então não tratamos como falha de proxy.
+    if data.get("error"):
+        return jsonify({"error": data["error"]}), 200
+
+    return jsonify({"result": data.get("result")})
+
+
 @app.route("/")
 def index():
     return render_template("index.html")
