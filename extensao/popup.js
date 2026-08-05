@@ -47,6 +47,7 @@ const $ = (id) => document.getElementById(id);
 const els = {
   source:        $("source"),
   recapture:     $("recapture"),
+  themeToggle:   $("themeToggle"),
   toggleConfig:  $("toggleConfig"),
   configPanel:   $("configPanel"),
   // config fields
@@ -112,6 +113,43 @@ els.toggleConfig.addEventListener("click", () => {
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
+// Tema claro/escuro (mesma paleta e mecânica do site)
+// ─────────────────────────────────────────────────────────────────────────────
+const THEME_KEY = "francards_ext_theme";
+
+function applyTheme(theme) {
+  document.documentElement.setAttribute("data-theme", theme);
+  if (els.themeToggle) {
+    els.themeToggle.textContent = theme === "dark" ? "☀️" : "🌙";
+    els.themeToggle.title = theme === "dark" ? "Modo claro" : "Modo escuro";
+  }
+}
+
+function initTheme() {
+  chrome.storage.local.get(THEME_KEY, (data) => {
+    const saved = data && data[THEME_KEY];
+    if (saved === "dark" || saved === "light") {
+      applyTheme(saved);
+      return;
+    }
+    const prefersDark =
+      window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches;
+    applyTheme(prefersDark ? "dark" : "light");
+  });
+}
+
+if (els.themeToggle) {
+  els.themeToggle.addEventListener("click", () => {
+    const current = document.documentElement.getAttribute("data-theme") || "light";
+    const next = current === "dark" ? "light" : "dark";
+    applyTheme(next);
+    chrome.storage.local.set({ [THEME_KEY]: next });
+  });
+}
+
+initTheme();
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Status helpers
 // ─────────────────────────────────────────────────────────────────────────────
 function setStatus(msg, state) {
@@ -158,26 +196,53 @@ async function capture() {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// AnkiConnect
+// AnkiConnect — via proxy no servidor Francards
+//
+// O AnkiConnect rejeita com 403 requisições vindas de chrome-extension://
+// porque essa origem não está na whitelist dele. Solução: roteamos tudo pelo
+// servidor Francards (/api/anki-proxy), que chama o AnkiConnect
+// servidor-a-servidor, sem restrição de CORS.
 // ─────────────────────────────────────────────────────────────────────────────
 let ankiTargetCache = {};
 
-async function ankiRequest(action, params = {}) {
-  const body = { action, version: 6, params };
-  const key = els.ankiApiKey.value.trim();
-  if (key) body.key = key;
+function getFrancardsBase() {
+  let base = (els.francardsUrl.value.trim() || DEFAULT_URL).replace(/\/+$/, "");
+  if (!/^https?:\/\//i.test(base)) base = "https://" + base;
+  return base;
+}
 
-  const ankiUrl = (els.ankiUrl.value.trim() || DEFAULT_ANKI).replace(/\/+$/, "");
-  const res = await fetch(ankiUrl, {
+async function ankiRequest(action, params = {}) {
+  const base         = getFrancardsBase();
+  const anki_url     = (els.ankiUrl.value.trim() || DEFAULT_ANKI).replace(/\/+$/, "");
+  const anki_api_key = els.ankiApiKey.value.trim();
+
+  // Detecta configuração inválida cedo, antes de sequer tentar a requisição.
+  // Quando o proxy roda na Vercel (não no localhost), ele não consegue alcançar
+  // 127.0.0.1 do usuário — isso resulta em 405 ou falha de conexão.
+  const proxyIsRemote = !/localhost|127\.0\.0\.1/i.test(base);
+  const ankiIsLocal   = /localhost|127\.0\.0\.1/i.test(anki_url);
+  if (proxyIsRemote && ankiIsLocal) {
+    throw new Error(
+      "Configuração inválida: o Endereço do Francards aponta para a nuvem " +
+      "(Vercel), mas o Endereço do AnkiConnect é local (127.0.0.1). " +
+      "Troque o AnkiConnect para seu link do Tailscale " +
+      "(ex: https://jarvis-lenovo.tail5a31ce.ts.net) — abra ⚙ Configurações → Avançado."
+    );
+  }
+
+  const res = await fetch(`${base}/api/anki-proxy`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body),
+    body: JSON.stringify({ anki_url, anki_api_key, action, params }),
   });
-  if (!res.ok) throw new Error(`AnkiConnect respondeu ${res.status}`);
-  const data = await res.json();
+
+  // O proxy repassa o status HTTP do AnkiConnect; se não for 2xx, lança erro.
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.error || `Proxy respondeu ${res.status}`);
   if (data.error) throw new Error(data.error);
   return data.result;
 }
+
 
 async function resolveAnkiTarget(kind) {
   if (ankiTargetCache[kind]) return ankiTargetCache[kind];
@@ -236,6 +301,27 @@ async function sendCardToAnki(card) {
   });
 }
 
+// Dispara a sincronização com o AnkiWeb depois do envio — mesmo comportamento
+// do site principal (triggerAnkiSync em script.js). Sem isso, a ficha fica só
+// localmente até você sincronizar manualmente no Anki.
+async function triggerAnkiSync() {
+  const previous = els.status.textContent;
+  const previousState = els.status.dataset.state;
+  setStatus("sincronizando com o AnkiWeb…");
+  try {
+    await ankiRequest("sync");
+    setStatus("sincronizado com o AnkiWeb ✓", "ok");
+  } catch (_) {
+    // Sync é "best effort" — se falhar (ex: sem conta AnkiWeb configurada),
+    // não interrompe o fluxo, só volta ao status anterior.
+    setStatus(previous, previousState);
+    return;
+  }
+  setTimeout(() => {
+    setStatus(previous, previousState);
+  }, 4000);
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Geração de flashcards (inline)
 // ─────────────────────────────────────────────────────────────────────────────
@@ -252,8 +338,7 @@ async function generateInline() {
     return;
   }
 
-  let base = (els.francardsUrl.value.trim() || DEFAULT_URL).replace(/\/+$/, "");
-  if (!/^https?:\/\//i.test(base)) base = "https://" + base;
+  const base = getFrancardsBase();
 
   els.generate.disabled = true;
   els.generate.textContent = "Gerando…";
@@ -382,7 +467,7 @@ function buildCardEl(card, index) {
   sendBtn.type = "button";
   sendBtn.textContent = "→ Anki";
 
-  sendBtn._sendAction = async () => {
+  sendBtn._sendAction = async ({ sync = true } = {}) => {
     const c = getCard();
     if (c.tipo === "cloze" && !c.texto) { alert("Texto não pode ficar vazio."); return; }
     if (c.tipo === "cloze" && !/\{\{c\d+::/.test(c.texto)) {
@@ -400,6 +485,7 @@ function buildCardEl(card, index) {
       sendBtn.dataset.sent = "true";
       flag.textContent = "enviado";
       flag.dataset.sent = "true";
+      if (sync) triggerAnkiSync();
     } catch (err) {
       sendBtn.textContent = orig;
       const msg = String(err.message || err);
@@ -459,10 +545,11 @@ async function sendAll() {
   let done = 0;
   for (const el of pending) {
     const btn = el.querySelector(".btn-send-card");
-    if (btn && btn._sendAction) await btn._sendAction();
+    if (btn && btn._sendAction) await btn._sendAction({ sync: false });
     done++;
     els.sendAllBtn.textContent = `Enviando ${done}/${pending.length}…`;
   }
+  await triggerAnkiSync();
   els.sendAllBtn.textContent = "Enviar todas ao Anki";
   els.sendAllBtn.disabled = false;
   setStatus("Todas as fichas foram enviadas ao Anki!", "ok");
@@ -501,8 +588,7 @@ function downloadTxt() {
 // ─────────────────────────────────────────────────────────────────────────────
 function openOnSite() {
   const text = els.captured.value.trim();
-  let base = (els.francardsUrl.value.trim() || DEFAULT_URL).replace(/\/+$/, "");
-  if (!/^https?:\/\//i.test(base)) base = "https://" + base;
+  const base = getFrancardsBase();
   chrome.tabs.create({ url: `${base}/#fc=${encodeURIComponent(text)}` });
 }
 
