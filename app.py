@@ -124,6 +124,91 @@ def _format_blocks(formato: str):
         '{"tipo": "qa", "pergunta": "...", "resposta": "..."}',
     )
 
+STUDY_HEADER = """Você é um médico especialista em criar flashcards de altíssima qualidade para \
+estudo com repetição espaçada (Anki), a partir de material de estudo (aula, capítulo \
+de livro, UpToDate ou diretriz clínica) — não de uma resolução de questão.
+
+Sua tarefa: ler o MATERIAL abaixo e extrair dele flashcards que testem os pontos mais \
+importantes para memorizar — definições, critérios diagnósticos, classificações, doses, \
+prazos, indicações e contraindicações, condutas.
+
+REGRAS OBRIGATÓRIAS (siga todas, sem exceção):
+1. Cada flashcard testa UM ÚNICO fato ou conceito (princípio atômico).
+2. PROIBIDO perguntas genéricas como "Explique sobre...", "O que é...", "Fale sobre...".
+   Toda pergunta deve ser específica o bastante para ter apenas UMA resposta correta.
+3. Priorize o que tem MAIOR valor de prova/prática clínica: critérios, valores de corte,
+   doses, indicações/contraindicações, condutas — não trivia nem conceito genérico.
+4. Respostas devem ser CURTAS e PRECISAS — idealmente uma frase ou poucas palavras.
+5. Não crie flashcards sobre informação que não estava explícita no material.
+6. Não repita a mesma informação em cards diferentes.
+7. Gere entre 5 e 20 flashcards nesta rodada, conforme a densidade real do material —
+   se o material for extenso, o usuário pode pedir mais fichas depois (botão "gerar mais").
+8. Se o material não tiver conteúdo suficiente para nenhum flashcard de qualidade,
+   retorne uma lista de flashcards vazia."""
+
+TIPO_CONTEUDO_BLOCKS = {
+    "aula": (
+        "TIPO DE MATERIAL: aula/slides. O conteúdo pode estar telegráfico (tópicos, "
+        "sem frases completas) — reconstrua o raciocínio clínico implícito ao formular "
+        "cada ficha, não copie o slide literalmente."
+    ),
+    "livro": (
+        "TIPO DE MATERIAL: capítulo de livro-texto. Priorize definições, fisiopatologia "
+        "central, classificações e condutas descritas em detalhe — um capítulo tem "
+        "profundidade suficiente para fichas mais específicas que um resumo de aula."
+    ),
+    "diretriz": (
+        "TIPO DE MATERIAL: UpToDate ou diretriz clínica. Priorize fortemente critérios "
+        "diagnósticos explícitos, grau de recomendação/nível de evidência quando citado, "
+        "doses e esquemas terapêuticos exatos, e situações de exceção/contraindicação — "
+        "é isso que diferencia uma diretriz de um resumo genérico."
+    ),
+}
+
+OBJETIVO_BLOCKS = {
+    "revisao": (
+        "OBJETIVO DESTA RODADA: revisão ampla. Priorize COBERTURA — fichas mais curtas "
+        "e numerosas, tocando o máximo de subtemas distintos do material, boa para uma "
+        "primeira passada por um assunto novo."
+    ),
+    "aprofundamento": (
+        "OBJETIVO DESTA RODADA: aprofundamento e raciocínio clínico. Priorize "
+        "PROFUNDIDADE sobre cobertura — menos fichas, mas cada uma forçando "
+        'justificativa clínica, diagnóstico diferencial ou o "e se o cenário fosse '
+        'diferente". Prefira perguntas que peçam para prever a próxima conduta, não só '
+        "reconhecer um nome."
+    ),
+    "protocolo": (
+        "OBJETIVO DESTA RODADA: fixação de protocolo e números. Priorize fichas CLOZE "
+        "testando exatamente doses, prazos, critérios diagnósticos numéricos, escalas e "
+        "classificações — o tipo de informação que se esquece por não ter lógica "
+        "embutida, só decoreba."
+    ),
+    "caso-clinico": (
+        "OBJETIVO DESTA RODADA: estilo caso clínico. Sempre que possível, formule a "
+        "pergunta como um mini-caso clínico plausível e compatível com o critério/conduta "
+        'sendo testado ("paciente de 45 anos, dor torácica há 2h, ECG mostra X — qual a '
+        'conduta?"), em vez de uma pergunta didática seca. Isso simula melhor o formato '
+        "real de uma prova de residência."
+    ),
+}
+
+PROVA_ALVO_BLOCKS = {
+    "hcfmusp-acesso-direto": (
+        "CONTEXTO DE PROVA-ALVO: HCFMUSP — Acesso Direto (residência médica). Ao "
+        "formular as fichas, dê prioridade extra (sem inventar conteúdo que não esteja "
+        "no material) a temas que essa prova historicamente cobra com frequência: rotura "
+        "prematura de membranas e profilaxia para GBS, contraindicações a parto vaginal, "
+        "alvo pressórico em hipertensão crônica gestacional, vigilância fetal por idade "
+        "gestacional, reanimação neonatal, icterícia neonatal, desenho de estudo e "
+        "vieses em epidemiologia, pré-eclâmpsia/eclâmpsia, colangite/coledocolitíase, "
+        "cetoacidose diabética e síndrome do ovário policístico. Se o material tocar "
+        "algum desses temas, não deixe de extrair uma ficha sobre ele, mesmo que pareça "
+        "um detalhe menor."
+    ),
+}
+
+
 RESOLVE_PROMPT_TEMPLATE = """Você é um professor de medicina especialista em resolver questões de \
 provas de residência médica com raciocínio clínico explícito.
 
@@ -142,16 +227,43 @@ QUESTÃO:
 """
 
 
-def build_generate_prompt(resolucao: str, tema: str = "", existentes=None, formato: str = "qa") -> str:
+def build_generate_prompt(
+    resolucao: str,
+    tema: str = "",
+    existentes=None,
+    formato: str = "qa",
+    modo: str = "questao",
+    tipo_conteudo: str = "",
+    objetivo: str = "",
+    prova_alvo: str = "",
+) -> str:
     """Monta o prompt de geração. formato: 'qa' (pergunta/resposta), 'cloze'
     (oclusão do Anki) ou 'ambos'. Opcionalmente foca num tema e evita repetir
-    fichas que já existem (para o botão 'Gerar mais fichas')."""
-    parts = [PROMPT_HEADER]
+    fichas que já existem (para o botão 'Gerar mais fichas').
+
+    modo: 'questao' (padrão — resolução de questão) ou 'documento' (aula,
+    capítulo de livro, UpToDate/diretriz). No modo documento, tipo_conteudo,
+    objetivo e prova_alvo calibram o prompt para material de estudo em vez de
+    resolução de questão.
+    """
+    is_documento = modo == "documento"
+    parts = [STUDY_HEADER if is_documento else PROMPT_HEADER]
+
+    if is_documento:
+        bloco_tipo = TIPO_CONTEUDO_BLOCKS.get(tipo_conteudo)
+        if bloco_tipo:
+            parts.append(bloco_tipo)
+        bloco_objetivo = OBJETIVO_BLOCKS.get(objetivo)
+        if bloco_objetivo:
+            parts.append(bloco_objetivo)
+        bloco_prova = PROVA_ALVO_BLOCKS.get(prova_alvo)
+        if bloco_prova:
+            parts.append(bloco_prova)
 
     if tema:
         parts.append(
             "FOCO OBRIGATÓRIO DESTA RODADA: gere flashcards especificamente sobre o tema "
-            f'"{tema.strip()}", desde que ele apareça ou se relacione à resolução abaixo.'
+            f'"{tema.strip()}", desde que ele apareça ou se relacione ao texto abaixo.'
         )
 
     existentes = existentes or []
@@ -174,7 +286,8 @@ def build_generate_prompt(resolucao: str, tema: str = "", existentes=None, forma
     parts.append(
         _OUTPUT_SKELETON.replace("__TIPOS__", tipos_txt).replace("__CARDS_DESC__", cards_desc)
     )
-    parts.append('RESOLUÇÃO DA QUESTÃO:\n"""\n' + resolucao.strip() + '\n"""')
+    rotulo = "MATERIAL DE ESTUDO" if is_documento else "RESOLUÇÃO DA QUESTÃO"
+    parts.append(f'{rotulo}:\n"""\n' + resolucao.strip() + '\n"""')
 
     return "\n\n".join(parts)
 
@@ -475,16 +588,32 @@ def generate():
         existentes = []
     imagens = normalize_images(data.get("imagens"))
 
+    modo = (data.get("modo") or "questao").strip().lower()
+    if modo not in ("questao", "documento"):
+        modo = "questao"
+    tipo_conteudo = (data.get("tipo_conteudo") or "").strip().lower()
+    objetivo = (data.get("objetivo") or "").strip().lower()
+    prova_alvo = (data.get("prova_alvo") or "").strip().lower()
+
     # Com imagem, o texto pode ser curto (a questão está na figura). Só exigimos
     # os 20 caracteres de resolução quando NÃO há imagem.
     if not imagens and (not resolucao or len(resolucao) < 20):
-        return jsonify({"error": "Cole o texto completo da resolução (ou anexe uma imagem) antes de gerar."}), 400
+        return jsonify({"error": "Cole o texto completo (ou anexe uma imagem) antes de gerar."}), 400
     if not api_key:
         return jsonify({"error": "Informe sua chave de API antes de gerar."}), 400
     if provider not in ("gemini", "deepseek"):
         return jsonify({"error": "Provedor de IA inválido."}), 400
 
-    prompt = build_generate_prompt(resolucao, tema=tema, existentes=existentes, formato=formato)
+    prompt = build_generate_prompt(
+        resolucao,
+        tema=tema,
+        existentes=existentes,
+        formato=formato,
+        modo=modo,
+        tipo_conteudo=tipo_conteudo,
+        objetivo=objetivo,
+        prova_alvo=prova_alvo,
+    )
     if imagens:
         prompt += (
             "\n\nOBSERVAÇÃO: há IMAGEM(NS) anexada(s) a esta questão (ex.: ECG, "
