@@ -243,8 +243,16 @@
         <div class="results-buttons">
           <button id="generateMoreBtn" class="btn-secondary">Gerar mais fichas</button>
           <button id="downloadBtn" class="btn-secondary">Baixar fichas (.txt)</button>
+          <button id="downloadApkgBtn" class="btn-secondary">Baixar fichas (.apkg)</button>
           <button id="sendAllBtn" class="btn-secondary">Enviar todas para o Anki</button>
         </div>
+      </div>
+      <div class="select-row">
+        <span id="selectCount" class="select-count">0 selecionada(s)</span>
+        <button id="selectAllBtn" class="link-btn" type="button">Selecionar todas</button>
+        <span aria-hidden="true">·</span>
+        <button id="selectNoneBtn" class="link-btn" type="button">Nenhuma</button>
+        <span class="hint select-hint">Os downloads (.txt/.apkg) usam só as fichas marcadas — "Enviar para o Anki" continua enviando tudo, como hoje.</span>
       </div>
       <div id="cardsGrid" class="cards-grid"></div>
 
