@@ -36,6 +36,10 @@
     drawerLabel: $("drawerLabel"),
     sendAllBtn: $("sendAllBtn"),
     downloadBtn: $("downloadBtn"),
+    downloadApkgBtn: $("downloadApkgBtn"),
+    selectAllBtn: $("selectAllBtn"),
+    selectNoneBtn: $("selectNoneBtn"),
+    selectCount: $("selectCount"),
     generateMoreBtn: $("generateMoreBtn"),
     temasPanel: $("temasPanel"),
     temasChips: $("temasChips"),
@@ -625,6 +629,30 @@ function initTheme() {
     return Array.from(els.cardsGrid.querySelectorAll(".card")).map((el) => cardFromEl(el));
   }
 
+  function collectSelectedCards() {
+    return Array.from(els.cardsGrid.querySelectorAll(".card"))
+      .filter((el) => {
+        const cb = el.querySelector(".card-select");
+        return !cb || cb.checked;
+      })
+      .map((el) => cardFromEl(el));
+  }
+
+  function updateSelectCount() {
+    const total = els.cardsGrid.querySelectorAll(".card").length;
+    const selected = els.cardsGrid.querySelectorAll(".card-select:checked").length;
+    if (els.selectCount) {
+      els.selectCount.textContent = `${selected}/${total} selecionada(s)`;
+    }
+  }
+
+  function setAllCardsSelected(selected) {
+    els.cardsGrid.querySelectorAll(".card-select").forEach((cb) => {
+      cb.checked = selected;
+    });
+    updateSelectCount();
+  }
+
   function cardFromEl(el) {
     if (el.dataset.tipo === "cloze") {
       return { tipo: "cloze", texto: el.querySelector(".c-field").value.trim() };
@@ -715,6 +743,7 @@ function initTheme() {
     flashcards.forEach((card, i) => {
       els.cardsGrid.appendChild(buildCardEl(card, i));
     });
+    updateSelectCount();
   }
 
   function appendCards(flashcards) {
@@ -724,6 +753,7 @@ function initTheme() {
       els.cardsGrid.appendChild(buildCardEl(card, startIndex + i));
     });
     els.drawerLabel.textContent = `Fichas geradas — ${els.cardsGrid.children.length}`;
+    updateSelectCount();
   }
 
   function buildCardEl(card, index) {
@@ -733,17 +763,34 @@ function initTheme() {
     el.className = "card";
     el.dataset.tipo = tipo;
 
+    const selectWrap = document.createElement("label");
+    selectWrap.className = "card-select-wrap";
+    const selectBox = document.createElement("input");
+    selectBox.type = "checkbox";
+    selectBox.className = "card-select";
+    selectBox.checked = true;
+    selectBox.addEventListener("change", updateSelectCount);
+    selectWrap.appendChild(selectBox);
+
     const serial = document.createElement("div");
     serial.className = "card-serial";
+    const leftGroup = document.createElement("div");
+    leftGroup.className = "card-serial-left";
     const num = document.createElement("span");
     num.textContent = `Nº ${String(index + 1).padStart(2, "0")}`;
+    leftGroup.append(selectWrap, num);
+
+    const rightGroup = document.createElement("div");
+    rightGroup.className = "card-serial-right";
     const typeTag = document.createElement("span");
     typeTag.className = "card-type";
     typeTag.textContent = tipo === "cloze" ? "cloze" : "P/R";
     const flag = document.createElement("span");
     flag.className = "card-flag";
     flag.textContent = "novo";
-    serial.append(num, typeTag, flag);
+    rightGroup.append(typeTag, flag);
+
+    serial.append(leftGroup, rightGroup);
 
     const divider = document.createElement("hr");
     divider.className = "card-divider";
@@ -792,6 +839,7 @@ function initTheme() {
     delBtn.addEventListener("click", () => {
       el.remove();
       els.drawerLabel.textContent = `Fichas geradas — ${els.cardsGrid.children.length}`;
+      updateSelectCount();
     });
 
     const sendBtn = document.createElement("button");
@@ -903,9 +951,9 @@ function initTheme() {
   }
 
   function downloadCardsAsText() {
-    const cards = collectCurrentCards();
+    const cards = collectSelectedCards();
     if (cards.length === 0) {
-      alert("Não há fichas geradas para baixar.");
+      alert("Selecione ao menos uma ficha para baixar.");
       return;
     }
 
@@ -929,6 +977,51 @@ function initTheme() {
     }
   }
 
+  async function downloadCardsAsApkg() {
+    const cards = collectSelectedCards();
+    if (cards.length === 0) {
+      alert("Selecione ao menos uma ficha para baixar.");
+      return;
+    }
+
+    els.downloadApkgBtn.disabled = true;
+    const original = els.downloadApkgBtn.textContent;
+    els.downloadApkgBtn.textContent = "Gerando .apkg…";
+
+    try {
+      const res = await fetch("/api/export-apkg", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          cards,
+          deck_name: els.deckName.value.trim() || "Padrão",
+          tags: els.tags.value.trim(),
+        }),
+      });
+
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error || `Erro ${res.status}`);
+      }
+
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const stamp = new Date().toISOString().slice(0, 19).replace(/[:T]/g, "-");
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `fichas-${stamp}.apkg`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      alert("Não foi possível gerar o .apkg: " + (err.message || err));
+    } finally {
+      els.downloadApkgBtn.disabled = false;
+      els.downloadApkgBtn.textContent = original;
+    }
+  }
+
   els.generateBtn.addEventListener("click", generateFlashcards);
 
   // Ctrl+Enter (ou Cmd+Enter no Mac) no campo de resolução dispara a geração.
@@ -941,6 +1034,9 @@ function initTheme() {
   els.generateMoreBtn.addEventListener("click", () => generateMoreFlashcards());
   els.sendAllBtn.addEventListener("click", sendAllCards);
   els.downloadBtn.addEventListener("click", downloadCardsAsText);
+  els.downloadApkgBtn.addEventListener("click", downloadCardsAsApkg);
+  els.selectAllBtn.addEventListener("click", () => setAllCardsSelected(true));
+  els.selectNoneBtn.addEventListener("click", () => setAllCardsSelected(false));
   els.pasteBtn.addEventListener("click", pasteFromClipboard);
   els.temaCustomBtn.addEventListener("click", handleTemaCustomSubmit);
   els.temaInput.addEventListener("keydown", (e) => {
