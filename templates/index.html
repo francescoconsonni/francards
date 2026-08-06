@@ -29,11 +29,82 @@
     <span class="tab">FOCO CG 2027</span>
     <h1>Gerador&nbsp;de Flashcards</h1>
     <p class="sub">Cole a resolução de uma questão, a IA extrai o que vale memorizar e você manda direto pro Anki no formato de flashcard.</p>
+    <button id="docModeToggleBtn" class="btn-ghost" type="button" title="Gerar fichas a partir de um documento, aula ou capítulo de livro">📚 Documento</button>
     <button id="themeToggle" class="btn-ghost" type="button" title="Alternar tema">🌙</button>
     <span id="ankiStatus" class="status-pill" data-state="checking">verificando AnkiConnect…</span>
   </header>
 
   <main>
+    <!-- PAINEL DE DOCUMENTO/AULA — separado, oculto por padrão -->
+    <section class="panel doc-panel" id="documentPanel">
+      <h2 class="panel-title"><span class="idx">📚</span> Gerar fichas de um documento ou aula</h2>
+
+      <div class="field-grid">
+        <label class="field">
+          <span>Tipo de conteúdo</span>
+          <select id="docTipoConteudo">
+            <option value="aula">Aula / slides</option>
+            <option value="livro">Capítulo de livro</option>
+            <option value="diretriz">UpToDate / diretriz</option>
+          </select>
+        </label>
+        <label class="field">
+          <span>Objetivo</span>
+          <select id="docObjetivo">
+            <option value="aprofundamento">Aprofundamento / raciocínio</option>
+            <option value="revisao">Revisão ampla</option>
+            <option value="protocolo">Fixação de protocolo/número</option>
+            <option value="caso-clinico">Estilo caso clínico</option>
+          </select>
+        </label>
+        <label class="field">
+          <span>Prova-alvo</span>
+          <select id="docProvaAlvo">
+            <option value="">Nenhuma (genérico)</option>
+            <option value="hcfmusp-acesso-direto">HCFMUSP — Acesso Direto</option>
+          </select>
+        </label>
+      </div>
+
+      <div class="image-zone doc-zone" id="docDropZone" tabindex="0">
+        <input type="file" id="docFileInput" accept="application/pdf" hidden>
+        <div class="image-zone-hint">
+          <span class="image-zone-icon">📄</span>
+          <span>Arraste um PDF aqui, ou <label class="image-zone-link" for="docFileInput">escolha um arquivo</label> — o texto é extraído no seu navegador, o PDF nunca é enviado a nenhum servidor.</span>
+        </div>
+      </div>
+
+      <div id="docChapterWrap" class="field-grid" hidden>
+        <label class="field" id="docChapterField">
+          <span id="docChapterLabel">Capítulo</span>
+          <select id="docChapterSelect"></select>
+        </label>
+        <label class="field" id="docPageStartField" hidden>
+          <span>Da página</span>
+          <input type="number" id="docPageStart" min="1">
+        </label>
+        <label class="field" id="docPageEndField" hidden>
+          <span>Até a página</span>
+          <input type="number" id="docPageEnd" min="1">
+        </label>
+      </div>
+
+      <label class="field" id="docTextWrap" hidden style="margin-top:0.8rem">
+        <span>Texto extraído — revise antes de gerar</span>
+        <textarea id="docExtractedText" rows="10"></textarea>
+      </label>
+
+      <div class="actions" style="margin-top:0.8rem">
+        <button id="docGenerateBtn" class="btn-primary" type="button" disabled>Gerar fichas deste documento</button>
+        <span id="docStatus" class="inline-status" role="status" aria-live="polite"></span>
+      </div>
+
+      <p class="hint">
+        Prefere sintetizar antes? <button id="docNotebookLmBtn" class="link-btn" type="button">↗ Abrir no NotebookLM</button>
+        — cole o PDF lá, peça um resumo estruturado ou tire uma dúvida, depois cole o resultado no campo de texto acima.
+      </p>
+    </section>
+
     <!-- CONFIGURAÇÃO AGORA É UM MENU SUSPENSO -->
     <section class="panel" id="configPanel">
       <details class="config-details">
