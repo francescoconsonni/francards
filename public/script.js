@@ -44,6 +44,27 @@
     ankiStatus: $("ankiStatus"),
     themeToggle: $("themeToggle"),
     configFab: $("configFab"),
+    // painel de documento/aula
+    docModeToggleBtn: $("docModeToggleBtn"),
+    documentPanel: $("documentPanel"),
+    docTipoConteudo: $("docTipoConteudo"),
+    docObjetivo: $("docObjetivo"),
+    docProvaAlvo: $("docProvaAlvo"),
+    docDropZone: $("docDropZone"),
+    docFileInput: $("docFileInput"),
+    docChapterWrap: $("docChapterWrap"),
+    docChapterField: $("docChapterField"),
+    docChapterLabel: $("docChapterLabel"),
+    docChapterSelect: $("docChapterSelect"),
+    docPageStartField: $("docPageStartField"),
+    docPageStart: $("docPageStart"),
+    docPageEndField: $("docPageEndField"),
+    docPageEnd: $("docPageEnd"),
+    docTextWrap: $("docTextWrap"),
+    docExtractedText: $("docExtractedText"),
+    docGenerateBtn: $("docGenerateBtn"),
+    docStatus: $("docStatus"),
+    docNotebookLmBtn: $("docNotebookLmBtn"),
   };
 
   const STORAGE_KEY = "flashcard_anki_settings_v1";
@@ -394,6 +415,7 @@ function initTheme() {
     const texto = els.resolveResult.value.trim();
     if (!texto) return;
     insertTextInResolucao(texto, { replace: true });
+    setDocModeBadge(null); // resolução de questão é um contexto diferente do modo documento
     setResolveStatus("Resolução usada no campo abaixo.", "ok");
   }
 
@@ -549,6 +571,8 @@ function initTheme() {
     else els.genStatus.removeAttribute("data-state");
   }
 
+  let docModeMeta = null;
+
   async function callGenerateApi(extra = {}) {
     const resolucao = els.resolucao.value.trim();
     const provider = els.provider.value;
@@ -560,7 +584,15 @@ function initTheme() {
     const res = await fetch("/api/generate", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ resolucao, provider, api_key: apiKey, formato, imagens, ...extra }),
+      body: JSON.stringify({
+        resolucao,
+        provider,
+        api_key: apiKey,
+        formato,
+        imagens,
+        ...(docModeMeta || {}),
+        ...extra,
+      }),
     });
     const data = await res.json();
     if (!res.ok) throw new Error(data.error || `Erro ${res.status}`);
@@ -943,6 +975,282 @@ function initTheme() {
 
   if (els.configFab) {
     els.configFab.addEventListener("click", toggleConfig);
+  }
+
+  // ------------------------------------------------------------------
+  // Painel de documento/aula — PDF processado no navegador (pdf.js),
+  // nunca enviado ao servidor. Só o texto extraído vai pra API.
+  // ------------------------------------------------------------------
+
+  const PDFJS_VERSION = "5.7.284";
+  let pdfjsLibPromise = null;
+  function getPdfJs() {
+    if (!pdfjsLibPromise) {
+      pdfjsLibPromise = import(
+        `https://cdn.jsdelivr.net/npm/pdfjs-dist@${PDFJS_VERSION}/build/pdf.min.mjs`
+      ).then((lib) => {
+        lib.GlobalWorkerOptions.workerSrc = `https://cdn.jsdelivr.net/npm/pdfjs-dist@${PDFJS_VERSION}/build/pdf.worker.min.mjs`;
+        return lib;
+      });
+    }
+    return pdfjsLibPromise;
+  }
+
+  let currentPdf = null; // documento pdf.js carregado no momento
+
+  function setDocStatus(msg, state) {
+    els.docStatus.textContent = msg || "";
+    if (state) els.docStatus.dataset.state = state;
+    else els.docStatus.removeAttribute("data-state");
+  }
+
+  function toggleDocPanel(forceOpen) {
+    const panel = els.documentPanel;
+    const shouldOpen = forceOpen ?? !panel.classList.contains("doc-visible");
+    panel.classList.toggle("doc-visible", shouldOpen);
+    if (shouldOpen) panel.scrollIntoView({ behavior: "smooth", block: "start" });
+  }
+
+  // Achata o sumário (outline) do PDF, que pode ter capítulos aninhados em
+  // sub-seções, numa lista única na ordem em que aparecem no documento.
+  function flattenOutline(items) {
+    const flat = [];
+    (items || []).forEach((item) => {
+      flat.push(item);
+      if (item.items && item.items.length) flat.push(...flattenOutline(item.items));
+    });
+    return flat;
+  }
+
+  // Resolve cada item do sumário pro número de página real (o sumário só
+  // guarda um "destino" interno do PDF, não a página diretamente).
+  async function resolveOutlinePages(pdf, outlineItems) {
+    const resolved = [];
+    for (const item of outlineItems) {
+      try {
+        let dest = item.dest;
+        if (typeof dest === "string") dest = await pdf.getDestination(dest);
+        if (dest && dest[0] != null) {
+          const pageIndex = await pdf.getPageIndex(dest[0]);
+          resolved.push({ title: item.title.trim(), page: pageIndex + 1 });
+        }
+      } catch (_) {
+        // destino que o pdf.js não conseguiu resolver — ignora esse item
+      }
+    }
+    return resolved;
+  }
+
+  async function extractPageRangeText(pdf, startPage, endPage) {
+    const parts = [];
+    for (let i = startPage; i <= endPage; i++) {
+      const page = await pdf.getPage(i);
+      const content = await page.getTextContent();
+      const strs = content.items.map((it) => it.str);
+      parts.push(strs.join(" "));
+    }
+    return parts.join("\n\n").replace(/[ \t]+/g, " ").trim();
+  }
+
+  function showExtractedText(text) {
+    els.docExtractedText.value = text;
+    els.docTextWrap.hidden = false;
+    els.docGenerateBtn.disabled = text.trim().length < 20;
+  }
+
+  async function reextractFromChapterSelect() {
+    if (!currentPdf) return;
+    const opt = els.docChapterSelect.selectedOptions[0];
+    if (!opt) return;
+    const start = Number(opt.dataset.start);
+    const end = Number(opt.dataset.end);
+    setDocStatus("Extraindo texto do capítulo…");
+    try {
+      const text = await extractPageRangeText(currentPdf, start, end);
+      showExtractedText(text);
+      setDocStatus(`Extraído: páginas ${start}–${end}.`, "ok");
+    } catch (err) {
+      setDocStatus("Falha ao extrair texto: " + (err.message || err), "error");
+    }
+  }
+
+  async function reextractFromManualRange() {
+    if (!currentPdf) return;
+    const start = Math.max(1, Number(els.docPageStart.value) || 1);
+    const end = Math.min(currentPdf.numPages, Number(els.docPageEnd.value) || currentPdf.numPages);
+    if (start > end) return;
+    setDocStatus("Extraindo texto…");
+    try {
+      const text = await extractPageRangeText(currentPdf, start, end);
+      showExtractedText(text);
+      setDocStatus(`Extraído: páginas ${start}–${end}.`, "ok");
+    } catch (err) {
+      setDocStatus("Falha ao extrair texto: " + (err.message || err), "error");
+    }
+  }
+
+  async function handlePdfFile(file) {
+    if (!file || file.type !== "application/pdf") {
+      setDocStatus("Escolha um arquivo PDF.", "error");
+      return;
+    }
+
+    els.docChapterWrap.hidden = true;
+    els.docTextWrap.hidden = true;
+    els.docGenerateBtn.disabled = true;
+    setDocStatus("Carregando PDF…");
+
+    try {
+      const pdfjsLib = await getPdfJs();
+      const buf = await file.arrayBuffer();
+      currentPdf = await pdfjsLib.getDocument({ data: buf }).promise;
+
+      const rawOutline = await currentPdf.getOutline();
+      const flat = rawOutline ? flattenOutline(rawOutline) : [];
+      const resolved = flat.length ? await resolveOutlinePages(currentPdf, flat) : [];
+
+      els.docChapterWrap.hidden = false;
+
+      if (resolved.length >= 2) {
+        // PDF tem sumário utilizável — monta o seletor de capítulo
+        els.docChapterField.hidden = false;
+        els.docPageStartField.hidden = true;
+        els.docPageEndField.hidden = true;
+        els.docChapterLabel.textContent = `Capítulo (${resolved.length} encontrados no sumário do PDF)`;
+
+        els.docChapterSelect.innerHTML = "";
+        resolved.forEach((item, i) => {
+          const end = i + 1 < resolved.length ? resolved[i + 1].page - 1 : currentPdf.numPages;
+          const opt = document.createElement("option");
+          opt.value = String(i);
+          opt.dataset.start = String(item.page);
+          opt.dataset.end = String(Math.max(item.page, end));
+          opt.textContent = `${item.title} (p. ${item.page}–${opt.dataset.end})`;
+          els.docChapterSelect.appendChild(opt);
+        });
+
+        setDocStatus(`PDF carregado — ${currentPdf.numPages} páginas, sumário detectado.`, "ok");
+        await reextractFromChapterSelect();
+      } else {
+        // Sem sumário utilizável — cai pro seletor manual de página
+        els.docChapterField.hidden = true;
+        els.docPageStartField.hidden = false;
+        els.docPageEndField.hidden = false;
+        els.docPageStart.value = "1";
+        els.docPageEnd.value = String(currentPdf.numPages);
+        els.docPageStart.max = String(currentPdf.numPages);
+        els.docPageEnd.max = String(currentPdf.numPages);
+
+        setDocStatus(
+          `PDF carregado — ${currentPdf.numPages} páginas (sem sumário; selecione o intervalo manualmente).`,
+          "ok"
+        );
+        await reextractFromManualRange();
+      }
+    } catch (err) {
+      setDocStatus("Não foi possível ler o PDF: " + (err.message || err), "error");
+    }
+  }
+
+  function imageFilesLikePdfFromDataTransfer(dt) {
+    if (!dt) return null;
+    const file = Array.from(dt.files || []).find((f) => f.type === "application/pdf");
+    return file || null;
+  }
+
+  els.docDropZone.addEventListener("dragover", (e) => {
+    e.preventDefault();
+    els.docDropZone.classList.add("dragover");
+  });
+  els.docDropZone.addEventListener("dragleave", () => els.docDropZone.classList.remove("dragover"));
+  els.docDropZone.addEventListener("drop", (e) => {
+    e.preventDefault();
+    els.docDropZone.classList.remove("dragover");
+    const file = imageFilesLikePdfFromDataTransfer(e.dataTransfer);
+    if (file) handlePdfFile(file);
+    else setDocStatus("Solte um arquivo PDF.", "error");
+  });
+  els.docDropZone.addEventListener("click", (e) => {
+    if (e.target.closest("label.image-zone-link")) return;
+    els.docFileInput.click();
+  });
+  els.docFileInput.addEventListener("change", () => {
+    const file = els.docFileInput.files && els.docFileInput.files[0];
+    if (file) handlePdfFile(file);
+    els.docFileInput.value = "";
+  });
+
+  els.docChapterSelect.addEventListener("change", reextractFromChapterSelect);
+  els.docPageStart.addEventListener("change", reextractFromManualRange);
+  els.docPageEnd.addEventListener("change", reextractFromManualRange);
+
+  els.docNotebookLmBtn.addEventListener("click", () => {
+    window.open("https://notebooklm.google.com", "_blank", "noopener");
+  });
+
+  function setDocModeBadge(meta) {
+    let badge = document.getElementById("docModeBadge");
+    if (!meta) {
+      docModeMeta = null;
+      if (badge) badge.remove();
+      return;
+    }
+    docModeMeta = meta;
+    const tipoLabels = { aula: "Aula", livro: "Capítulo de livro", diretriz: "UpToDate/diretriz" };
+    const objLabels = {
+      aprofundamento: "Aprofundamento",
+      revisao: "Revisão ampla",
+      protocolo: "Protocolo/número",
+      "caso-clinico": "Caso clínico",
+    };
+    const provaLabel = meta.prova_alvo === "hcfmusp-acesso-direto" ? " · HCFMUSP Acesso Direto" : "";
+    const label = `📚 Modo documento: ${tipoLabels[meta.tipo_conteudo] || meta.tipo_conteudo} · ${
+      objLabels[meta.objetivo] || meta.objetivo
+    }${provaLabel}`;
+
+    if (!badge) {
+      badge = document.createElement("div");
+      badge.id = "docModeBadge";
+      badge.className = "doc-mode-badge";
+      els.resolucao.insertAdjacentElement("beforebegin", badge);
+    }
+    badge.innerHTML = "";
+    const text = document.createElement("span");
+    text.textContent = label;
+    const clearBtn = document.createElement("button");
+    clearBtn.type = "button";
+    clearBtn.textContent = "×";
+    clearBtn.title = "Sair do modo documento";
+    clearBtn.addEventListener("click", () => setDocModeBadge(null));
+    badge.append(text, clearBtn);
+  }
+
+  async function generateFromDocument() {
+    const texto = els.docExtractedText.value.trim();
+    if (texto.length < 20) {
+      setDocStatus("Texto extraído muito curto para gerar fichas.", "error");
+      return;
+    }
+
+    const meta = {
+      modo: "documento",
+      tipo_conteudo: els.docTipoConteudo.value,
+      objetivo: els.docObjetivo.value,
+      prova_alvo: els.docProvaAlvo.value,
+    };
+
+    insertTextInResolucao(texto, { replace: true });
+    setDocModeBadge(meta);
+    toggleDocPanel(false);
+
+    els.resolucao.scrollIntoView({ behavior: "smooth", block: "center" });
+    await generateFlashcards();
+  }
+
+  els.docGenerateBtn.addEventListener("click", generateFromDocument);
+
+  if (els.docModeToggleBtn) {
+    els.docModeToggleBtn.addEventListener("click", () => toggleDocPanel());
   }
 
   // ------------------------------------------------------------------
