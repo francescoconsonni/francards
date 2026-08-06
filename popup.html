@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600&family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="popup.css">
+</head>
+<body>
+
+  <header>
+    <img src="icons/icon-32.png" alt="" width="26" height="26">
+    <div class="title-block">
+      <strong>Francards</strong>
+      <span id="source" class="source">capturando…</span>
+    </div>
+    <button id="recapture" class="btn-ghost" type="button" title="Capturar de novo">↻</button>
+    <button id="themeToggle" class="btn-ghost" type="button" title="Alternar tema">🌙</button>
+    <button id="toggleConfig" class="btn-ghost" type="button" title="Configurações">⚙</button>
+  </header>
+
+  <!-- ── CONFIGURAÇÃO ───────────────────────────────────────────── -->
+  <section id="configPanel" class="config-panel" hidden>
+    <div class="field-row">
+      <label class="field">
+        <span>Provedor</span>
+        <select id="provider">
+          <option value="gemini">Gemini</option>
+          <option value="deepseek">DeepSeek</option>
+        </select>
+      </label>
+      <label class="field">
+        <span>Formato</span>
+        <select id="formato">
+          <option value="qa">Pergunta/Resp.</option>
+          <option value="cloze">Cloze</option>
+          <option value="ambos">Ambos</option>
+        </select>
+      </label>
+    </div>
+    <label class="field">
+      <span>Chave de API</span>
+      <input id="apiKey" type="password" placeholder="cole sua chave aqui" autocomplete="off" spellcheck="false">
+    </label>
+    <label class="field">
+      <span>Baralho no Anki</span>
+      <input id="deckName" type="text" value="Flashcards Automáticos" autocomplete="off" spellcheck="false">
+    </label>
+    <label class="field">
+      <span>Tags (separadas por espaço)</span>
+      <input id="tags" type="text" placeholder="ex: cardio residencia" autocomplete="off" spellcheck="false">
+    </label>
+
+    <details class="advanced-details">
+      <summary>Avançado — AnkiConnect e modelo de nota</summary>
+      <div class="field-row">
+        <label class="field">
+          <span>Modelo (Q/R)</span>
+          <input id="modelName" type="text" value="Basic" autocomplete="off" spellcheck="false">
+        </label>
+        <label class="field">
+          <span>Modelo (Cloze)</span>
+          <input id="clozeModelName" type="text" value="Cloze" autocomplete="off" spellcheck="false">
+        </label>
+      </div>
+      <div class="field-row">
+        <label class="field">
+          <span>Campo Frente</span>
+          <input id="frontField" type="text" value="Front" autocomplete="off" spellcheck="false">
+        </label>
+        <label class="field">
+          <span>Campo Verso</span>
+          <input id="backField" type="text" value="Back" autocomplete="off" spellcheck="false">
+        </label>
+      </div>
+      <div class="field-row">
+        <label class="field">
+          <span>Campo Cloze</span>
+          <input id="clozeField" type="text" value="Text" autocomplete="off" spellcheck="false">
+        </label>
+        <label class="field">
+          <span>Chave AnkiConnect</span>
+          <input id="ankiApiKey" type="password" placeholder="opcional" autocomplete="off" spellcheck="false">
+        </label>
+      </div>
+      <label class="field">
+        <span>Endereço do AnkiConnect</span>
+        <input id="ankiUrl" type="text" value="http://127.0.0.1:8765" autocomplete="off" spellcheck="false">
+      </label>
+    </details>
+
+    <label class="field" style="margin-top:10px">
+      <span>Endereço do Francards</span>
+      <input id="francardsUrl" type="text" spellcheck="false" autocomplete="off"
+             placeholder="https://francards.vercel.app">
+    </label>
+    <p class="hint">Para uso local: <code>http://localhost:5000</code></p>
+  </section>
+
+  <!-- ── TEXTAREA DE CAPTURA ────────────────────────────────────── -->
+  <textarea id="captured" rows="7"
+    placeholder="Selecione o texto da questão na página (ou deixe a captura automática tentar) e ele aparece aqui — edite se precisar. Ctrl+Enter para gerar."></textarea>
+
+  <button id="generate" class="btn-primary" type="button">Gerar flashcards</button>
+  <p id="status" class="status" role="status" aria-live="polite"></p>
+
+  <!-- ── RESULTADOS INLINE ──────────────────────────────────────── -->
+  <section id="resultsSection" hidden>
+    <div class="results-header">
+      <span id="resultsLabel" class="results-label">Fichas geradas</span>
+      <div class="results-actions">
+        <button id="sendAllBtn" class="btn-sm" type="button">Enviar todas ao Anki</button>
+        <button id="downloadBtn" class="btn-sm" type="button">Baixar .txt</button>
+        <button id="openSiteBtn" class="btn-sm btn-ghost" type="button" title="Abrir no site">↗ Site</button>
+      </div>
+    </div>
+    <div id="cardsContainer"></div>
+
+    <button id="generateMoreBtn" class="btn-secondary-full" type="button">+ Gerar mais fichas desta resolução</button>
+
+    <div id="temasPanel" class="temas-panel" hidden>
+      <p class="temas-label">Sugestões de temas ainda não cobertos:</p>
+      <div id="temasChips" class="temas-chips"></div>
+    </div>
+
+    <div class="temas-custom">
+      <label class="field temas-custom-field">
+        <span>Ou peça fichas sobre um tema específico</span>
+        <div class="temas-input-row">
+          <input type="text" id="temaInput" placeholder="ex: farmacocinética, diagnóstico diferencial…" autocomplete="off" spellcheck="false">
+          <button id="temaCustomBtn" class="btn-tema-submit" type="button">Gerar ↵</button>
+        </div>
+      </label>
+    </div>
+  </section>
+
+  <script src="extractor.js"></script>
+  <script src="popup.js"></script>
+</body>
+</html>
