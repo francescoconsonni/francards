@@ -380,6 +380,46 @@ button:focus-visible {
   animation: cardIn 0.28s ease both;
 }
 
+.card-select-wrap {
+  display: inline-flex;
+  align-items: center;
+  cursor: pointer;
+  margin-right: 0.3rem;
+}
+.card-select-wrap input {
+  width: 1rem;
+  height: 1rem;
+  accent-color: var(--accent);
+  cursor: pointer;
+}
+.card-serial-left,
+.card-serial-right {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.select-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin: -0.3rem 0 0.9rem;
+  font-size: 0.82rem;
+}
+.select-count {
+  font-family: var(--font-mono);
+  color: var(--ink-soft);
+  margin-right: 0.2rem;
+}
+.select-hint {
+  margin: 0 0 0 0.5rem;
+  flex-basis: 100%;
+}
+@media (min-width: 720px) {
+  .select-hint { flex-basis: auto; margin-left: auto; }
+}
+
 .cards-grid .card:nth-child(3n+1) { transform: rotate(-0.35deg); }
 .cards-grid .card:nth-child(3n+2) { transform: rotate(0.3deg); }
 .cards-grid .card:nth-child(3n+3) { transform: rotate(-0.15deg); }
