@@ -1,10 +1,15 @@
+import hashlib
+import html
 import json
 import os
 import re
+import tempfile
+from datetime import datetime
 
+import genanki
 import requests
 from dotenv import load_dotenv
-from flask import Flask, jsonify, render_template, request
+from flask import Flask, Response, jsonify, render_template, request
 
 load_dotenv()  # lê o arquivo .env na raiz do projeto, se existir (só localmente)
 
@@ -689,6 +694,108 @@ def resolve():
         return jsonify({"error": "A IA não retornou uma resolução. Tente novamente."}), 502
 
     return jsonify({"resolucao": resolucao})
+
+
+# ---------------------------------------------------------------------------
+# Exportação .apkg — gera um pacote Anki de verdade (via genanki), sem
+# depender do AnkiConnect nem de nenhum computador ligado. O usuário abre o
+# arquivo baixado direto no AnkiDroid (ele se auto-associa a .apkg) ou no
+# Anki Desktop, e as fichas se mesclam ao baralho existente.
+# ---------------------------------------------------------------------------
+
+# IDs fixos: precisam ser sempre os mesmos entre execuções para que reimportar
+# um novo .apkg mescle no mesmo modelo de nota, em vez de criar um duplicado.
+_APKG_BASIC_MODEL = genanki.Model(
+    1607392319,
+    "Francards Basic",
+    fields=[{"name": "Front"}, {"name": "Back"}],
+    templates=[
+        {
+            "name": "Card 1",
+            "qfmt": "{{Front}}",
+            "afmt": '{{FrontSide}}<hr id="answer">{{Back}}',
+        }
+    ],
+)
+
+_APKG_CLOZE_MODEL = genanki.Model(
+    1607392320,
+    "Francards Cloze",
+    fields=[{"name": "Text"}],
+    templates=[
+        {
+            "name": "Cloze",
+            "qfmt": "{{cloze:Text}}",
+            "afmt": "{{cloze:Text}}",
+        }
+    ],
+    model_type=genanki.Model.CLOZE,
+)
+
+
+def _deck_id_for_name(deck_name: str) -> int:
+    """Deriva um ID de baralho estável a partir do nome — assim, exportar de
+    novo com o mesmo nome de baralho mescla no mesmo baralho no Anki, em vez
+    de criar um baralho novo a cada download."""
+    digest = hashlib.md5(deck_name.encode("utf-8")).hexdigest()[:8]
+    return int(digest, 16)
+
+
+@app.route("/api/export-apkg", methods=["POST"])
+def export_apkg():
+    data = request.get_json(force=True, silent=True) or {}
+
+    cards = data.get("cards")
+    if not isinstance(cards, list) or not cards:
+        return jsonify({"error": "Nenhuma ficha selecionada para exportar."}), 400
+
+    deck_name = (data.get("deck_name") or "Padrão").strip() or "Padrão"
+    tags_raw = (data.get("tags") or "").strip()
+    tag_list = tags_raw.split() if tags_raw else []
+
+    deck = genanki.Deck(_deck_id_for_name(deck_name), deck_name)
+
+    added = 0
+    for card in cards:
+        if not isinstance(card, dict):
+            continue
+        tipo = str(card.get("tipo") or "").strip().lower()
+
+        if tipo == "cloze":
+            texto = str(card.get("texto") or "").strip()
+            if not texto or not re.search(r"\{\{c\d+::", texto):
+                continue
+            note = genanki.Note(model=_APKG_CLOZE_MODEL, fields=[html.escape(texto)], tags=tag_list)
+        else:
+            pergunta = str(card.get("pergunta") or "").strip()
+            resposta = str(card.get("resposta") or "").strip()
+            if not pergunta or not resposta:
+                continue
+            note = genanki.Note(
+                model=_APKG_BASIC_MODEL,
+                fields=[html.escape(pergunta), html.escape(resposta)],
+                tags=tag_list,
+            )
+
+        deck.add_note(note)
+        added += 1
+
+    if added == 0:
+        return jsonify({"error": "Nenhuma das fichas selecionadas é válida para exportar."}), 400
+
+    package = genanki.Package(deck)
+    with tempfile.TemporaryDirectory() as tmp_dir:
+        out_path = os.path.join(tmp_dir, "fichas.apkg")
+        package.write_to_file(out_path)
+        with open(out_path, "rb") as f:
+            apkg_bytes = f.read()
+
+    stamp = datetime.now().strftime("%Y-%m-%d-%H%M%S")
+    return Response(
+        apkg_bytes,
+        mimetype="application/octet-stream",
+        headers={"Content-Disposition": f'attachment; filename="fichas-{stamp}.apkg"'},
+    )
 
 
 if __name__ == "__main__":
