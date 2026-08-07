@@ -92,16 +92,44 @@ escolher o provedor de IA, colar sua chave de API e gerar as fichas.
    imagens). Marque *"Anexar a imagem também nas fichas"* para que ela vá junto
    no cartão do Anki.
 3. Revise as fichas geradas — os campos de pergunta e resposta são
-   editáveis diretamente no cartão.
+   editáveis diretamente no cartão. Cada ficha tem uma caixinha de seleção
+   (marcada por padrão) — desmarque as que não quiser incluir num download.
 4. Clique em **Enviar para o Anki** em cada ficha, ou em **Enviar todas para
-   o Anki** para mandar tudo de uma vez. Duplicatas (mesma pergunta já
-   existente no baralho) são detectadas pelo Anki e não são reenviadas.
+   o Anki** para mandar tudo de uma vez (sempre manda todas, independente da
+   seleção). Duplicatas (mesma pergunta já existente no baralho) são
+   detectadas pelo Anki e não são reenviadas.
+5. Prefere não depender do AnkiConnect agora? Os botões **Baixar fichas
+   (.txt)** e **Baixar fichas (.apkg)** exportam só as fichas **selecionadas**
+   — o `.apkg` é o mais prático no celular: baixe e toque no arquivo, o
+   AnkiDroid abre sozinho perguntando se quer importar (mescla no baralho
+   existente, não substitui nada). Veja a seção 7 para mais detalhes.
 
 O modelo de nota padrão é `Basic` (campos `Front`/`Back`, o modelo padrão do
 Anki). Fichas **cloze** usam o modelo `Cloze` (campo `Text`), que também já vem
 no Anki. Se você usa modelos diferentes ou com os campos renomeados, ajuste em
 **Avançado** (há campos separados para o modelo de pergunta/resposta e para o
 de cloze).
+
+### 3.1 Gerar a partir de um documento, aula ou capítulo de livro
+
+Clique em **"📚 Documento"** no topo da página pra abrir um painel separado
+(fica escondido por padrão). Você pode:
+
+- Arrastar um PDF — o texto é extraído **no seu navegador** via `pdf.js`; o
+  arquivo em si nunca é enviado a nenhum servidor. Se o PDF tiver sumário
+  (a maioria dos livros/manuais tem), aparece um seletor de capítulo com os
+  títulos reais; sem sumário, você escolhe manualmente "da página X até Y".
+- Escolher o **tipo de conteúdo** (aula/capítulo de livro/UpToDate-diretriz),
+  o **objetivo** (revisão ampla / aprofundamento / fixação de protocolo /
+  estilo caso clínico) e, opcionalmente, uma **prova-alvo** — isso muda o
+  jeito que a IA formula as fichas.
+- Clicar em **"Gerar fichas deste documento"** — o texto extraído vai pro
+  campo de resolução principal com um selo indicando o modo ativo, e a
+  geração já dispara.
+
+Prefere sintetizar o material antes? O botão **"↗ Abrir no NotebookLM"**
+dentro do painel leva direto pra lá — cole o PDF, peça um resumo, cole o
+resultado de volta no campo de texto.
 
 ---
 
@@ -198,15 +226,32 @@ diferente no campo, ela tem prioridade sobre a fixa só naquela requisição.
 ## 7. Gerar fichas fora de casa e importar depois
 
 Se você gerar fichas de um lugar onde não consegue alcançar o AnkiConnect
-(trabalho, fora de casa, sem a configuração da seção 9), use o botão
-**"Baixar fichas (.txt)"** em vez de "Enviar para o Anki". Ele salva um
-arquivo de texto com uma pergunta e uma resposta por linha, separadas por
-tab — o formato que o próprio Anki entende para importação em lote.
+(trabalho, fora de casa, sem a configuração da seção 8), use **"Baixar
+fichas (.apkg)"** ou **"Baixar fichas (.txt)"** em vez de "Enviar para o
+Anki". Os dois exportam só as fichas **selecionadas** (a caixinha em cada
+cartão) — desmarque o que não quiser incluir antes de baixar.
 
-Para importar esse arquivo depois, no computador com o Anki:
+### 7.1 `.apkg` (recomendado, principalmente no celular)
+
+Gera um pacote Anki de verdade — sem precisar do AnkiConnect nem de nenhum
+computador ligado.
+
+- **No AnkiDroid (celular):** baixe o arquivo e toque nele — o AnkiDroid se
+  auto-associa a `.apkg` e abre sozinho perguntando se quer importar. As
+  fichas se mesclam ao baralho existente (não substituem nada).
+- **No Anki Desktop:** Arquivo → Importar → escolha o `.apkg`.
+
+Reexportar com o mesmo nome de baralho mescla no mesmo baralho — não cria um
+baralho novo a cada download.
+
+### 7.2 `.txt` (alternativa)
+
+Salva um arquivo de texto com uma pergunta e uma resposta por linha,
+separadas por tab — o formato que o próprio Anki entende para importação em
+lote, tanto no Desktop quanto no AnkiDroid (menu **Importar**).
 
 1. Abra o Anki → **Arquivo → Importar** (ou arraste o `.txt` para a janela
-   principal do Anki).
+   principal do Anki / AnkiDroid).
 2. Selecione o arquivo baixado.
 3. Na tela de importação, confira: **Type** = "Notas em texto", **Fields
    separated by** = Tab, e o mapeamento de campos: campo 1 → `Front` (ou
@@ -367,10 +412,14 @@ seletores do medcof estão em [`extensao/README-extensao.md`](extensao/README-ex
 
 ```bash
 pip install pytest responses
-python -m pytest -q          # backend: /api/generate, /api/resolve, parsing
+python -m pytest -q          # backend: /api/generate, /api/resolve, anki-proxy,
+                              # export-apkg, modo documento, parsing
 python test_handoff.py       # handoff extensão -> site (usa Chromium)
 python test_extractor.py     # extração da extensão (seleção / seletores / heurística)
 ```
 
 Os dois últimos exigem o Playwright/Chromium (`pip install playwright && playwright install chromium`).
-O backend é testado com a IA mockada — nenhuma chave de API é gasta.
+O backend é testado com a IA (e o AnkiConnect) mockados — nenhuma chave de
+API é gasta e nada é enviado a um AnkiConnect de verdade. Os testes estão em
+dois arquivos: `test_app.py` (geração/resolução de fichas) e
+`test_new_features.py` (proxy do Anki, exportação `.apkg`, modo documento).
