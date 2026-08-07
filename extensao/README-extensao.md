@@ -1,11 +1,13 @@
 # Extensão do Chrome — "Francards: Capturar questão"
 
-Captura a questão que você errou (no medcof ou em qualquer site) e abre o
-Francards já com o texto preenchido, pronto para gerar o flashcard.
+Captura a questão que você errou (no medcof ou em qualquer site) e gera os
+flashcards **direto no popup da extensão**, sem precisar abrir o site.
 
-Modelo escolhido: **captura & handoff**. A extensão NÃO fala com a IA nem com
-o Anki — ela só lê a questão da página e entrega ao site Francards, que faz o
-resto (gerar as fichas e mandar para o Anki, como já funcionava).
+Modelo atual: **captura & geração inline**. A extensão fala com a IA (Gemini/
+DeepSeek) e com o Anki (via `/api/anki-proxy` no seu Francards, que repassa
+pro AnkiConnect) diretamente do popup. O botão "Abrir no site" continua
+existindo como atalho opcional, caso você prefira revisar no site completo
+em vez do popup — mas não é mais o fluxo obrigatório.
 
 ---
 
@@ -14,11 +16,21 @@ resto (gerar as fichas e mandar para o Anki, como já funcionava).
 1. Você resolve uma questão no `qbank-prime.medcof.com.br` e erra — o comentário/gabarito aparece.
 2. Clica no ícone da extensão na barra do Chrome.
 3. O popup mostra o texto capturado (enunciado + comentário), **editável**.
-4. Clica em **"Criar flashcard →"**. Abre o Francards numa aba nova com esse texto no campo de resolução.
-5. No Francards: **Gerar flashcards** → revisar → **Enviar para o Anki**. Fluxo de sempre.
+4. Clica em **"Gerar flashcards"**. As fichas aparecem ali mesmo no popup,
+   uma por uma, editáveis.
+5. Revisa e clica em **"Enviar ao Anki"** em cada ficha, ou **"Enviar todas"**
+   — vai direto pro seu Anki (via AnkiConnect), sincronizando com o AnkiWeb
+   automaticamente em seguida.
+6. Precisa de mais fichas do mesmo texto? **"+ Gerar mais fichas"** ou os
+   chips de tema sugeridos fazem isso sem perder o que já foi gerado.
 
-O texto vai no fragmento (`#`) da URL do Francards, que **não é enviado ao
-servidor** — mesma garantia de privacidade do resto do app.
+O texto capturado nunca é salvo em servidor nenhum — só trafega até a API de
+geração (mesma garantia de privacidade do site).
+
+**Nota:** hoje a extensão não tem os botões de baixar `.txt`/`.apkg` nem a
+seleção de fichas que o site tem — só o envio direto ao Anki. Se isso virar
+um incômodo no seu uso, vale considerar trazer essas duas coisas pra cá
+também.
 
 ---
 
@@ -101,6 +113,12 @@ dela a extensão usa o **primeiro** seletor que encontrar texto.
 
 ## 6. Limitações
 
-- A extensão só **abre** o Francards com o texto; gerar e enviar ao Anki continua sendo no site (de propósito — mantém a extensão simples e com pouquíssimas permissões: `activeTab`, `scripting`, `storage`).
+- Sem baixar `.txt`/`.apkg` nem seleção de fichas pelo popup ainda — só envio
+  direto ao Anki (via AnkiConnect, com sincronização automática). O site tem
+  essas opções extras, a extensão por enquanto não.
 - Não roda em páginas internas do Chrome (`chrome://…`).
 - A captura automática é específica do medcof; em outros sites use a seleção manual.
+- O envio ao Anki passa pelo seu Francards (rota `/api/anki-proxy`), que
+  repassa pro AnkiConnect — então precisa do AnkiConnect acessível a partir
+  de onde o Francards estiver rodando (local ou, se publicado na Vercel, via
+  Tailscale Funnel). Veja a seção 8 do README principal.
