@@ -5,11 +5,14 @@ nenhuma chave é gasta).
 Rodar:  cd francards && python -m pytest -q
 """
 import json
+import re
 
 import pytest
 import responses
 
 import app as appmod
+
+GEMINI_RE = re.compile(r"https://generativelanguage\.googleapis\.com/.*")
 
 
 @pytest.fixture
@@ -196,7 +199,7 @@ def test_build_prompt_document_mode_without_prova_alvo_omits_hcfmusp_block():
 @responses.activate
 def test_generate_route_document_mode_end_to_end(client):
     body = json.dumps({"flashcards": [{"pergunta": "P?", "resposta": "R"}], "sugestoes_tema": []})
-    responses.add(responses.POST, appmod.GEMINI_URL.split("{model}")[0] + "*", json=gemini_reply(body), status=200)
+    responses.add(responses.POST, GEMINI_RE, json=gemini_reply(body), status=200)
 
     r = client.post(
         "/api/generate",
