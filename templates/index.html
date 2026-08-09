@@ -30,12 +30,30 @@
     <h1>Gerador&nbsp;de Flashcards</h1>
     <p class="sub">Cole a resolução de uma questão, a IA extrai o que vale memorizar e você manda direto pro Anki no formato de flashcard.</p>
     <button id="docModeToggleBtn" class="btn-ghost" type="button" title="Gerar fichas a partir de um documento, aula ou capítulo de livro">📚 Documento</button>
+    <button id="progressToggleBtn" class="btn-ghost" type="button" title="Prevalência × cobertura no Anki, por grande área">📊 Progresso</button>
     <button id="themeToggle" class="btn-ghost" type="button" title="Alternar tema">🌙</button>
     <span id="ankiStatus" class="status-pill" data-state="checking">verificando AnkiConnect…</span>
   </header>
 
   <main>
     <!-- PAINEL DE DOCUMENTO/AULA — separado, oculto por padrão -->
+    <!-- PAINEL DE PROGRESSO — prevalência (Acesso Direto) × cobertura no seu Anki -->
+    <section class="panel doc-panel" id="progressPanel">
+      <h2 class="panel-title"><span class="idx">📊</span> Progresso por grande área</h2>
+      <p class="hint">
+        Prevalência real no Acesso Direto HCFMUSP (2022-2026, 579 questões) comparada
+        com quantas fichas você já tem no Anki marcadas com cada área — classificação
+        simples em 6 categorias, feita pela IA ao gerar cada ficha (e editável por você
+        antes de enviar). Não é um número perfeito, é um indicativo de onde pode faltar
+        volume.
+      </p>
+      <div class="actions">
+        <button id="progressRefreshBtn" class="btn-secondary" type="button">Atualizar do Anki</button>
+        <span id="progressStatus" class="inline-status" role="status" aria-live="polite"></span>
+      </div>
+      <div id="progressTable" class="progress-table"></div>
+    </section>
+
     <section class="panel doc-panel" id="documentPanel">
       <h2 class="panel-title"><span class="idx">📚</span> Gerar fichas de um documento ou aula</h2>
 
