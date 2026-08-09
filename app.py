@@ -41,6 +41,50 @@ def api_options(path):
 
 # A Google aposenta modelos do Gemini com frequência. Tentamos o mais atual
 # primeiro e, se ele não existir mais (404), caímos para o próximo da lista.
+# As 6 grandes áreas usadas pra classificação leve de cada ficha (versão
+# "simples e confiável" — nada de taxonomia fina, que tem alto risco de erro
+# de classificação pela IA). Cada entrada: (nome canônico, slug pra tag do Anki).
+GRANDE_AREAS = [
+    ("Clínica Médica", "clinica-medica"),
+    ("Cirurgia", "cirurgia"),
+    ("Pediatria e Neonatologia", "pediatria"),
+    ("Saúde Coletiva, MFC e Epidemiologia", "saude-coletiva"),
+    ("Obstetrícia", "obstetricia"),
+    ("Ginecologia e Mastologia", "ginecologia"),
+]
+GRANDE_AREA_NAMES = [nome for nome, _ in GRANDE_AREAS]
+GRANDE_AREA_SLUGS = {nome: slug for nome, slug in GRANDE_AREAS}
+
+# Prevalência real no Acesso Direto HCFMUSP (2022-2026, 579 questões),
+# calculada a partir da taxonomia mestra validada com o usuário. Usada só
+# pelo painel de progresso — se um dia cobrirmos mais trilhas, isso vira um
+# dict por trilha em vez de um valor fixo.
+GRANDE_AREA_PREVALENCIA_ACESSO_DIRETO = {
+    "Clínica Médica": 21.1,
+    "Cirurgia": 19.3,
+    "Pediatria e Neonatologia": 18.5,
+    "Saúde Coletiva, MFC e Epidemiologia": 18.1,
+    "Obstetrícia": 12.4,
+    "Ginecologia e Mastologia": 10.5,
+}
+
+
+def normalize_grande_area(value) -> str:
+    """Aceita o que a IA mandou de volta e devolve um nome canônico das 6
+    áreas, ou "" se não bater com nada reconhecível (evita salvar lixo)."""
+    if not value:
+        return ""
+    value_norm = str(value).strip().lower()
+    for nome in GRANDE_AREA_NAMES:
+        if nome.lower() == value_norm:
+            return nome
+    # Tenta por substring, pra pegar variações tipo "Cirurgia Geral" -> "Cirurgia"
+    for nome in GRANDE_AREA_NAMES:
+        if nome.lower() in value_norm or value_norm in nome.lower():
+            return nome
+    return ""
+
+
 GEMINI_MODELS = ["gemini-3.6-flash", "gemini-2.5-flash", "gemini-flash-latest", "gemini-3.5-flash-lite"]
 GEMINI_URL = (
     "https://generativelanguage.googleapis.com/v1beta/models/"
@@ -73,13 +117,21 @@ REGRAS OBRIGATÓRIAS (siga todas, sem exceção):
 8. Se a resolução não tiver conteúdo suficiente para nenhum flashcard de qualidade,
    retorne uma lista de flashcards vazia."""
 
+GRANDE_AREA_BLOCK = (
+    "CLASSIFICAÇÃO POR GRANDE ÁREA: além dos campos do card, cada ficha precisa de um "
+    'campo "grande_area" com EXATAMENTE um destes 6 valores (copie a grafia exata):\n'
+    + "\n".join(f'- "{nome}"' for nome in GRANDE_AREA_NAMES)
+    + "\nEscolha a área clinicamente mais adequada ao conteúdo da ficha. Se a ficha "
+    "não se encaixar claramente em nenhuma, use a mais próxima — não deixe em branco."
+)
+
 QA_BLOCK = """FORMATO PERGUNTA-E-RESPOSTA (tipo "qa"):
 - "pergunta": específica o bastante para ter só UMA resposta correta.
 - "resposta": curta e precisa (uma frase ou poucas palavras).
 Exemplos (tema diferente do texto abaixo, apenas para calibrar o padrão):
 [
-  {"tipo": "qa", "pergunta": "Qual o tratamento de escolha para dissecção aguda de aorta tipo A?", "resposta": "Cirurgia de emergência imediata"},
-  {"tipo": "qa", "pergunta": "Por que antiagregantes são contraindicados na dissecção de aorta?", "resposta": "Aumentam o risco de ruptura catastrófica"}
+  {"tipo": "qa", "pergunta": "Qual o tratamento de escolha para dissecção aguda de aorta tipo A?", "resposta": "Cirurgia de emergência imediata", "grande_area": "Cirurgia"},
+  {"tipo": "qa", "pergunta": "Por que antiagregantes são contraindicados na dissecção de aorta?", "resposta": "Aumentam o risco de ruptura catastrófica", "grande_area": "Cirurgia"}
 ]"""
 
 CLOZE_BLOCK = """FORMATO CLOZE (tipo "cloze") — oclusão no estilo Anki:
@@ -89,8 +141,8 @@ CLOZE_BLOCK = """FORMATO CLOZE (tipo "cloze") — oclusão no estilo Anki:
 - A frase precisa fazer sentido sozinha e a lacuna ter uma única resposta óbvia.
 Exemplos (tema diferente do texto abaixo, apenas para calibrar o padrão):
 [
-  {"tipo": "cloze", "texto": "Na dissecção de aorta tipo A, o tratamento de escolha é a {{c1::cirurgia de emergência}}."},
-  {"tipo": "cloze", "texto": "Na dissecção de aorta, administra-se um {{c1::betabloqueador}} antes do vasodilatador para controlar a frequência cardíaca."}
+  {"tipo": "cloze", "texto": "Na dissecção de aorta tipo A, o tratamento de escolha é a {{c1::cirurgia de emergência}}.", "grande_area": "Cirurgia"},
+  {"tipo": "cloze", "texto": "Na dissecção de aorta, administra-se um {{c1::betabloqueador}} antes do vasodilatador para controlar a frequência cardíaca.", "grande_area": "Cirurgia"}
 ]"""
 
 _OUTPUT_SKELETON = """FORMATO DE SAÍDA — responda APENAS com um JSON válido, sem markdown, sem texto
@@ -115,18 +167,18 @@ def _format_blocks(formato: str):
         return (
             CLOZE_BLOCK,
             'Gere APENAS fichas do tipo "cloze".',
-            '{"tipo": "cloze", "texto": "frase com {{c1::termo escondido}}"}',
+            '{"tipo": "cloze", "texto": "frase com {{c1::termo escondido}}", "grande_area": "..."}',
         )
     if formato == "ambos":
         return (
             QA_BLOCK + "\n\n" + CLOZE_BLOCK,
             "Gere fichas dos DOIS tipos, escolhendo para cada fato o formato que memoriza melhor.",
-            '{"tipo": "qa", "pergunta": "...", "resposta": "..."}  OU  {"tipo": "cloze", "texto": "... {{c1::termo}} ..."}',
+            '{"tipo": "qa", "pergunta": "...", "resposta": "...", "grande_area": "..."}  OU  {"tipo": "cloze", "texto": "... {{c1::termo}} ...", "grande_area": "..."}',
         )
     return (
         QA_BLOCK,
         'Gere APENAS fichas do tipo "qa".',
-        '{"tipo": "qa", "pergunta": "...", "resposta": "..."}',
+        '{"tipo": "qa", "pergunta": "...", "resposta": "...", "grande_area": "..."}',
     )
 
 STUDY_HEADER = """Você é um médico especialista em criar flashcards de altíssima qualidade para \
@@ -288,6 +340,7 @@ def build_generate_prompt(
 
     exemplo_block, tipos_txt, cards_desc = _format_blocks(formato)
     parts.append(exemplo_block)
+    parts.append(GRANDE_AREA_BLOCK)
     parts.append(
         _OUTPUT_SKELETON.replace("__TIPOS__", tipos_txt).replace("__CARDS_DESC__", cards_desc)
     )
@@ -356,16 +409,19 @@ def normalize_flashcards(raw) -> list:
         texto = str(card.get("texto", "")).strip()
         pergunta = str(card.get("pergunta", "")).strip()
         resposta = str(card.get("resposta", "")).strip()
+        grande_area = normalize_grande_area(card.get("grande_area"))
 
         if not tipo:
             tipo = "cloze" if (texto and not (pergunta and resposta)) else "qa"
 
         if tipo == "cloze":
             if texto:
-                cleaned.append({"tipo": "cloze", "texto": texto})
+                cleaned.append({"tipo": "cloze", "texto": texto, "grande_area": grande_area})
         else:
             if pergunta and resposta:
-                cleaned.append({"tipo": "qa", "pergunta": pergunta, "resposta": resposta})
+                cleaned.append(
+                    {"tipo": "qa", "pergunta": pergunta, "resposta": resposta, "grande_area": grande_area}
+                )
     return cleaned
 
 
@@ -656,6 +712,22 @@ def generate():
         )
 
     return jsonify({"flashcards": flashcards, "sugestoes_tema": sugestoes})
+
+
+@app.route("/api/grande-areas", methods=["GET"])
+def grande_areas():
+    return jsonify(
+        {
+            "areas": [
+                {
+                    "nome": nome,
+                    "slug": slug,
+                    "prevalencia_acesso_direto": GRANDE_AREA_PREVALENCIA_ACESSO_DIRETO.get(nome, 0),
+                }
+                for nome, slug in GRANDE_AREAS
+            ]
+        }
+    )
 
 
 @app.route("/api/resolve", methods=["POST"])
