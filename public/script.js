@@ -50,6 +50,11 @@
     configFab: $("configFab"),
     // painel de documento/aula
     docModeToggleBtn: $("docModeToggleBtn"),
+    progressToggleBtn: $("progressToggleBtn"),
+    progressPanel: $("progressPanel"),
+    progressRefreshBtn: $("progressRefreshBtn"),
+    progressStatus: $("progressStatus"),
+    progressTable: $("progressTable"),
     documentPanel: $("documentPanel"),
     docTipoConteudo: $("docTipoConteudo"),
     docObjetivo: $("docObjetivo"),
@@ -522,6 +527,9 @@ function initTheme() {
   async function sendCardToAnki(card, imgHtml = "") {
     const deckName = els.deckName.value.trim() || "Padrão";
     const tags = els.tags.value.trim().split(/\s+/).filter(Boolean);
+    if (card.grande_area && GRANDE_AREA_SLUGS[card.grande_area]) {
+      tags.push(`hcfmusp::${GRANDE_AREA_SLUGS[card.grande_area]}`);
+    }
 
     await ensureDeck(deckName);
 
@@ -576,6 +584,49 @@ function initTheme() {
   }
 
   let docModeMeta = null;
+
+  // Fallback síncrono (idêntico ao backend) — evita condição de corrida caso
+  // a primeira ficha seja renderizada antes do fetch abaixo terminar.
+  let GRANDE_AREAS = [
+    "Clínica Médica",
+    "Cirurgia",
+    "Pediatria e Neonatologia",
+    "Saúde Coletiva, MFC e Epidemiologia",
+    "Obstetrícia",
+    "Ginecologia e Mastologia",
+  ];
+  let GRANDE_AREA_SLUGS = {
+    "Clínica Médica": "clinica-medica",
+    "Cirurgia": "cirurgia",
+    "Pediatria e Neonatologia": "pediatria",
+    "Saúde Coletiva, MFC e Epidemiologia": "saude-coletiva",
+    "Obstetrícia": "obstetricia",
+    "Ginecologia e Mastologia": "ginecologia",
+  };
+  let GRANDE_AREA_PREVALENCIA = {
+    "Clínica Médica": 21.1,
+    "Cirurgia": 19.3,
+    "Pediatria e Neonatologia": 18.5,
+    "Saúde Coletiva, MFC e Epidemiologia": 18.1,
+    "Obstetrícia": 12.4,
+    "Ginecologia e Mastologia": 10.5,
+  };
+
+  async function loadGrandeAreas() {
+    try {
+      const res = await fetch("/api/grande-areas");
+      const data = await res.json();
+      if (Array.isArray(data.areas) && data.areas.length) {
+        GRANDE_AREAS = data.areas.map((a) => a.nome);
+        GRANDE_AREA_SLUGS = Object.fromEntries(data.areas.map((a) => [a.nome, a.slug]));
+        GRANDE_AREA_PREVALENCIA = Object.fromEntries(
+          data.areas.map((a) => [a.nome, a.prevalencia_acesso_direto])
+        );
+      }
+    } catch (_) {
+      // Sem problema — segue com o fallback acima.
+    }
+  }
 
   async function callGenerateApi(extra = {}) {
     const resolucao = els.resolucao.value.trim();
@@ -654,13 +705,15 @@ function initTheme() {
   }
 
   function cardFromEl(el) {
+    const grande_area = el.querySelector(".card-area-select")?.value || "";
     if (el.dataset.tipo === "cloze") {
-      return { tipo: "cloze", texto: el.querySelector(".c-field").value.trim() };
+      return { tipo: "cloze", texto: el.querySelector(".c-field").value.trim(), grande_area };
     }
     return {
       tipo: "qa",
       pergunta: el.querySelector(".q-field").value.trim(),
       resposta: el.querySelector(".a-field").value.trim(),
+      grande_area,
     };
   }
 
@@ -792,6 +845,29 @@ function initTheme() {
 
     serial.append(leftGroup, rightGroup);
 
+    // Área clínica — a IA já vem com um palpite, mas fica editável porque
+    // classificação automática erra às vezes; melhor você corrigir aqui do
+    // que a tag errada ir pro Anki sem ninguém notar.
+    const areaWrap = document.createElement("div");
+    areaWrap.className = "card-area-wrap";
+    const areaLabel = document.createElement("span");
+    areaLabel.className = "card-area-label";
+    areaLabel.textContent = "Área:";
+    const areaSelect = document.createElement("select");
+    areaSelect.className = "card-area-select";
+    const blankOpt = document.createElement("option");
+    blankOpt.value = "";
+    blankOpt.textContent = "— sem classificação —";
+    areaSelect.appendChild(blankOpt);
+    GRANDE_AREAS.forEach((nome) => {
+      const opt = document.createElement("option");
+      opt.value = nome;
+      opt.textContent = nome;
+      areaSelect.appendChild(opt);
+    });
+    areaSelect.value = GRANDE_AREAS.includes(card.grande_area) ? card.grande_area : "";
+    areaWrap.append(areaLabel, areaSelect);
+
     const divider = document.createElement("hr");
     divider.className = "card-divider";
 
@@ -807,7 +883,7 @@ function initTheme() {
       cField.value = card.texto || "";
       autoGrow(cField);
       bodyEls = [cLabel, cField];
-      getCard = () => ({ tipo: "cloze", texto: cField.value.trim() });
+      getCard = () => ({ tipo: "cloze", texto: cField.value.trim(), grande_area: areaSelect.value });
     } else {
       const qLabel = document.createElement("label");
       qLabel.textContent = "Pergunta";
@@ -826,7 +902,12 @@ function initTheme() {
       autoGrow(aField);
 
       bodyEls = [qLabel, qField, divider, aLabel, aField];
-      getCard = () => ({ tipo: "qa", pergunta: qField.value.trim(), resposta: aField.value.trim() });
+      getCard = () => ({
+        tipo: "qa",
+        pergunta: qField.value.trim(),
+        resposta: aField.value.trim(),
+        grande_area: areaSelect.value,
+      });
     }
 
     const footer = document.createElement("div");
@@ -851,7 +932,7 @@ function initTheme() {
     sendBtn.addEventListener("click", () => sendBtn._sendAction());
 
     footer.append(delBtn, sendBtn);
-    el.append(serial, ...bodyEls, footer);
+    el.append(serial, areaWrap, ...bodyEls, footer);
     return el;
   }
 
@@ -1098,6 +1179,101 @@ function initTheme() {
     els.docStatus.textContent = msg || "";
     if (state) els.docStatus.dataset.state = state;
     else els.docStatus.removeAttribute("data-state");
+  }
+
+  function toggleProgressPanel(forceOpen) {
+    const panel = els.progressPanel;
+    const shouldOpen = forceOpen ?? !panel.classList.contains("doc-visible");
+    panel.classList.toggle("doc-visible", shouldOpen);
+    if (shouldOpen) {
+      panel.scrollIntoView({ behavior: "smooth", block: "start" });
+      loadProgressData();
+    }
+  }
+
+  function setProgressStatus(msg, state) {
+    els.progressStatus.textContent = msg || "";
+    if (state) els.progressStatus.dataset.state = state;
+    else els.progressStatus.removeAttribute("data-state");
+  }
+
+  async function loadProgressData() {
+    setProgressStatus("Consultando o Anki…");
+    els.progressRefreshBtn.disabled = true;
+
+    // Garante que temos a lista oficial de áreas (com prevalência) antes de renderizar.
+    await loadGrandeAreas();
+
+    const rows = [];
+    let ankiOk = true;
+    for (const nome of GRANDE_AREAS) {
+      const slug = GRANDE_AREA_SLUGS[nome];
+      let count = null;
+      try {
+        const ids = await ankiRequest("findCards", { query: `tag:hcfmusp::${slug}` });
+        count = Array.isArray(ids) ? ids.length : 0;
+      } catch (_) {
+        ankiOk = false;
+      }
+      rows.push({ nome, prevalencia: GRANDE_AREA_PREVALENCIA[nome] || 0, count });
+    }
+
+    renderProgressTable(rows);
+
+    if (!ankiOk) {
+      setProgressStatus(
+        "Não consegui falar com o AnkiConnect — mostrando só a prevalência. Confira o endereço em ⚙ Configuração.",
+        "error"
+      );
+    } else {
+      setProgressStatus("Atualizado.", "ok");
+    }
+    els.progressRefreshBtn.disabled = false;
+  }
+
+  function renderProgressTable(rows) {
+    const maxCount = Math.max(1, ...rows.map((r) => r.count || 0));
+    const sorted = [...rows].sort((a, b) => b.prevalencia - a.prevalencia);
+
+    els.progressTable.innerHTML = "";
+    sorted.forEach((r) => {
+      const row = document.createElement("div");
+      row.className = "progress-row";
+
+      const label = document.createElement("div");
+      label.className = "progress-row-label";
+      label.textContent = r.nome;
+
+      const prevLine = document.createElement("div");
+      prevLine.className = "progress-bar-line";
+      const prevBar = document.createElement("div");
+      prevBar.className = "progress-bar progress-bar-prev";
+      const prevFill = document.createElement("div");
+      prevFill.className = "progress-bar-fill";
+      prevFill.style.width = `${Math.min(100, r.prevalencia * 4)}%`;
+      prevBar.appendChild(prevFill);
+      const prevValue = document.createElement("span");
+      prevValue.className = "progress-bar-value";
+      prevValue.textContent = `${r.prevalencia.toFixed(1)}% da prova`;
+      prevLine.append(prevBar, prevValue);
+
+      const covLine = document.createElement("div");
+      covLine.className = "progress-bar-line";
+      const covBar = document.createElement("div");
+      covBar.className = "progress-bar progress-bar-cov";
+      const covFill = document.createElement("div");
+      covFill.className = "progress-bar-fill";
+      const covPct = r.count == null ? 0 : (100 * r.count) / maxCount;
+      covFill.style.width = `${covPct}%`;
+      covBar.appendChild(covFill);
+      const covValue = document.createElement("span");
+      covValue.className = "progress-bar-value";
+      covValue.textContent = r.count == null ? "— sem dado" : `${r.count} ficha(s) no Anki`;
+      covLine.append(covBar, covValue);
+
+      row.append(label, prevLine, covLine);
+      els.progressTable.appendChild(row);
+    });
   }
 
   function toggleDocPanel(forceOpen) {
@@ -1348,6 +1524,10 @@ function initTheme() {
   if (els.docModeToggleBtn) {
     els.docModeToggleBtn.addEventListener("click", () => toggleDocPanel());
   }
+  if (els.progressToggleBtn) {
+    els.progressToggleBtn.addEventListener("click", () => toggleProgressPanel());
+  }
+  els.progressRefreshBtn.addEventListener("click", loadProgressData);
 
   // ------------------------------------------------------------------
   // Recepção de conteúdo vindo da extensão do Chrome (handoff via #fc=...)
@@ -1414,6 +1594,7 @@ loadSettings();
   applyHandoffFromHash();
   applySharedText();
   checkAnkiConnection();
+  loadGrandeAreas();
   autoGrow(els.resolveResult);
   els.resolucao.focus();
 
