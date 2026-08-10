@@ -528,7 +528,11 @@ function initTheme() {
     const deckName = els.deckName.value.trim() || "Padrão";
     const tags = els.tags.value.trim().split(/\s+/).filter(Boolean);
     if (card.grande_area && GRANDE_AREA_SLUGS[card.grande_area]) {
-      tags.push(`hcfmusp::${GRANDE_AREA_SLUGS[card.grande_area]}`);
+      let tag = `hcfmusp::${GRANDE_AREA_SLUGS[card.grande_area]}`;
+      if (card.subarea && SUBAREA_SLUGS[card.subarea]) {
+        tag += `::${SUBAREA_SLUGS[card.subarea]}`;
+      }
+      tags.push(tag);
     }
 
     await ensureDeck(deckName);
@@ -612,6 +616,13 @@ function initTheme() {
     "Ginecologia e Mastologia": 10.5,
   };
 
+  // Subáreas — lista grande (47), sem fallback hardcoded; populada pelo fetch
+  // abaixo. Enquanto não carregar, o seletor de subárea mostra só "sem
+  // subárea" (degrada bem, não trava nada).
+  let SUBAREAS = []; // [{nome, grande_area, slug, prevalencia}]
+  let SUBAREA_SLUGS = {};
+  let SUBAREA_PREVALENCIA = {};
+
   async function loadGrandeAreas() {
     try {
       const res = await fetch("/api/grande-areas");
@@ -623,8 +634,15 @@ function initTheme() {
           data.areas.map((a) => [a.nome, a.prevalencia_acesso_direto])
         );
       }
+      if (Array.isArray(data.subareas) && data.subareas.length) {
+        SUBAREAS = data.subareas;
+        SUBAREA_SLUGS = Object.fromEntries(data.subareas.map((s) => [s.nome, s.slug]));
+        SUBAREA_PREVALENCIA = Object.fromEntries(
+          data.subareas.map((s) => [s.nome, s.prevalencia_acesso_direto])
+        );
+      }
     } catch (_) {
-      // Sem problema — segue com o fallback acima.
+      // Sem problema — segue com o fallback acima (ou vazio, no caso de subárea).
     }
   }
 
@@ -706,14 +724,16 @@ function initTheme() {
 
   function cardFromEl(el) {
     const grande_area = el.querySelector(".card-area-select")?.value || "";
+    const subarea = el.querySelector(".card-subarea-select")?.value || "";
     if (el.dataset.tipo === "cloze") {
-      return { tipo: "cloze", texto: el.querySelector(".c-field").value.trim(), grande_area };
+      return { tipo: "cloze", texto: el.querySelector(".c-field").value.trim(), grande_area, subarea };
     }
     return {
       tipo: "qa",
       pergunta: el.querySelector(".q-field").value.trim(),
       resposta: el.querySelector(".a-field").value.trim(),
       grande_area,
+      subarea,
     };
   }
 
@@ -866,7 +886,37 @@ function initTheme() {
       areaSelect.appendChild(opt);
     });
     areaSelect.value = GRANDE_AREAS.includes(card.grande_area) ? card.grande_area : "";
-    areaWrap.append(areaLabel, areaSelect);
+
+    // Subárea — as opções mudam conforme a grande área selecionada (só faz
+    // sentido mostrar subáreas daquela área), então precisa ficar em ordem:
+    // criar o select, DEPOIS a função que o popula, DEPOIS ligar o listener
+    // da área que chama essa função.
+    const subareaLabel = document.createElement("span");
+    subareaLabel.className = "card-area-label";
+    subareaLabel.textContent = "Subárea:";
+    const subareaSelect = document.createElement("select");
+    subareaSelect.className = "card-subarea-select";
+
+    function refreshSubareaOptions(preferido) {
+      const areaAtual = areaSelect.value;
+      subareaSelect.innerHTML = "";
+      const semSub = document.createElement("option");
+      semSub.value = "";
+      semSub.textContent = "— sem subárea —";
+      subareaSelect.appendChild(semSub);
+      SUBAREAS.filter((s) => !areaAtual || s.grande_area === areaAtual).forEach((s) => {
+        const opt = document.createElement("option");
+        opt.value = s.nome;
+        opt.textContent = s.nome;
+        subareaSelect.appendChild(opt);
+      });
+      const opcoesValidas = Array.from(subareaSelect.options).map((o) => o.value);
+      subareaSelect.value = opcoesValidas.includes(preferido) ? preferido : "";
+    }
+    refreshSubareaOptions(card.subarea || "");
+    areaSelect.addEventListener("change", () => refreshSubareaOptions(""));
+
+    areaWrap.append(areaLabel, areaSelect, subareaLabel, subareaSelect);
 
     const divider = document.createElement("hr");
     divider.className = "card-divider";
@@ -883,7 +933,12 @@ function initTheme() {
       cField.value = card.texto || "";
       autoGrow(cField);
       bodyEls = [cLabel, cField];
-      getCard = () => ({ tipo: "cloze", texto: cField.value.trim(), grande_area: areaSelect.value });
+      getCard = () => ({
+        tipo: "cloze",
+        texto: cField.value.trim(),
+        grande_area: areaSelect.value,
+        subarea: subareaSelect.value,
+      });
     } else {
       const qLabel = document.createElement("label");
       qLabel.textContent = "Pergunta";
@@ -907,6 +962,7 @@ function initTheme() {
         pergunta: qField.value.trim(),
         resposta: aField.value.trim(),
         grande_area: areaSelect.value,
+        subarea: subareaSelect.value,
       });
     }
 
@@ -1201,22 +1257,21 @@ function initTheme() {
     setProgressStatus("Consultando o Anki…");
     els.progressRefreshBtn.disabled = true;
 
-    // Garante que temos a lista oficial de áreas (com prevalência) antes de renderizar.
+    // Garante que temos a lista oficial de áreas/subáreas (com prevalência) antes de renderizar.
     await loadGrandeAreas();
 
-    const rows = [];
     let ankiOk = true;
-    for (const nome of GRANDE_AREAS) {
-      const slug = GRANDE_AREA_SLUGS[nome];
-      let count = null;
+    const queries = SUBAREAS.map(async (s) => {
+      const tag = `hcfmusp::${GRANDE_AREA_SLUGS[s.grande_area] || "outra"}::${s.slug}`;
       try {
-        const ids = await ankiRequest("findCards", { query: `tag:hcfmusp::${slug}` });
-        count = Array.isArray(ids) ? ids.length : 0;
+        const ids = await ankiRequest("findCards", { query: `tag:${tag}` });
+        return { nome: s.nome, grande_area: s.grande_area, prevalencia: s.prevalencia_acesso_direto, count: Array.isArray(ids) ? ids.length : 0 };
       } catch (_) {
         ankiOk = false;
+        return { nome: s.nome, grande_area: s.grande_area, prevalencia: s.prevalencia_acesso_direto, count: null };
       }
-      rows.push({ nome, prevalencia: GRANDE_AREA_PREVALENCIA[nome] || 0, count });
-    }
+    });
+    const rows = await Promise.all(queries);
 
     renderProgressTable(rows);
 
@@ -1242,7 +1297,13 @@ function initTheme() {
 
       const label = document.createElement("div");
       label.className = "progress-row-label";
-      label.textContent = r.nome;
+      const labelSub = document.createElement("span");
+      labelSub.className = "progress-row-parent";
+      labelSub.textContent = r.grande_area || "";
+      const labelName = document.createElement("span");
+      labelName.className = "progress-row-name";
+      labelName.textContent = r.nome;
+      label.append(labelSub, labelName);
 
       const prevLine = document.createElement("div");
       prevLine.className = "progress-bar-line";
