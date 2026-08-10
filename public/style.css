@@ -81,6 +81,14 @@ body {
 
 .masthead { margin-bottom: 2.25rem; }
 
+.masthead-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+  margin-top: 0.6rem;
+}
+
 .tab {
   display: inline-block;
   font-family: var(--font-mono);
@@ -331,6 +339,18 @@ button:focus-visible {
   padding: 0.4rem 0.7rem;
 }
 .btn-ghost:hover:not(:disabled) { border-color: var(--flag); color: var(--flag); }
+
+.btn-icon {
+  width: 2rem;
+  height: 2rem;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.95rem;
+  line-height: 1;
+  flex-shrink: 0;
+}
 
 .btn-send {
   background: var(--card);
