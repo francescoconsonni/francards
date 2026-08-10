@@ -69,6 +69,81 @@ GRANDE_AREA_PREVALENCIA_ACESSO_DIRETO = {
 }
 
 
+# Subáreas do Acesso Direto HCFMUSP (n>=3 questões nas últimas 5 provas,
+# cobrindo 78% das 579 questões — abaixo disso a amostra fica pequena demais
+# pra confiar). Cada entrada: (nome, grande_area pai, slug, prevalência %).
+SUBAREAS = [
+    ("Obstetrícia", "Obstetrícia", "obstetricia", 10.02),
+    ("Saúde Coletiva", "Saúde Coletiva, MFC e Epidemiologia", "saude-coletiva", 7.43),
+    ("Ginecologia", "Ginecologia e Mastologia", "ginecologia", 5.53),
+    ("Cirurgia Geral", "Cirurgia", "cirurgia-geral", 5.35),
+    ("Epidemiologia", "Saúde Coletiva, MFC e Epidemiologia", "epidemiologia", 4.66),
+    ("Neonatologia", "Pediatria e Neonatologia", "neonatologia", 3.63),
+    ("Pediatria (geral)", "Pediatria e Neonatologia", "pediatria-geral", 2.94),
+    ("Cirurgia do Trauma", "Cirurgia", "cirurgia-do-trauma", 2.59),
+    ("Cardiologia", "Clínica Médica", "cardiologia", 2.59),
+    ("Neurologia", "Clínica Médica", "neurologia", 2.25),
+    ("Pediatria - Infectologia", "Pediatria e Neonatologia", "pediatria-infectologia", 2.07),
+    ("Pediatria - Pneumologia", "Pediatria e Neonatologia", "pediatria-pneumologia", 1.38),
+    ("Medicina de Família e Comunidade", "Saúde Coletiva, MFC e Epidemiologia", "medicina-de-familia-e-comunidade", 1.38),
+    ("Cirurgia Bariátrica", "Cirurgia", "cirurgia-bariatrica", 1.21),
+    ("Pneumologia", "Clínica Médica", "pneumologia", 1.21),
+    ("Ginecologia - Endocrinologia", "Ginecologia e Mastologia", "ginecologia-endocrinologia", 1.21),
+    ("Pediatria - Neurologia", "Pediatria e Neonatologia", "pediatria-neurologia", 1.21),
+    ("Mastologia", "Ginecologia e Mastologia", "mastologia", 1.21),
+    ("Psiquiatria", "Clínica Médica", "psiquiatria", 1.04),
+    ("Uroginecologia", "Ginecologia e Mastologia", "uroginecologia", 1.04),
+    ("Cirurgia Pediátrica", "Cirurgia", "cirurgia-pediatrica", 0.86),
+    ("Dermatologia", "Clínica Médica", "dermatologia", 0.86),
+    ("Dermatologia - Infectologia", "Clínica Médica", "dermatologia-infectologia", 0.86),
+    ("Gastroenterologia", "Clínica Médica", "gastroenterologia", 0.86),
+    ("Pediatria - Emergência", "Pediatria e Neonatologia", "pediatria-emergencia", 0.86),
+    ("Pediatria - Hematologia", "Pediatria e Neonatologia", "pediatria-hematologia", 0.86),
+    ("Pediatria - Nefrologia", "Pediatria e Neonatologia", "pediatria-nefrologia", 0.86),
+    ("Cirurgia Hepatobiliar", "Cirurgia", "cirurgia-hepatobiliar", 0.69),
+    ("Cirurgia Oncológica", "Cirurgia", "cirurgia-oncologica", 0.69),
+    ("Coloproctologia Oncológica", "Cirurgia", "coloproctologia-oncologica", 0.69),
+    ("Hematologia", "Clínica Médica", "hematologia", 0.69),
+    ("Reumatologia", "Clínica Médica", "reumatologia", 0.69),
+    ("Ética - Saúde da Mulher", "Saúde Coletiva, MFC e Epidemiologia", "etica-saude-da-mulher", 0.69),
+    ("Infectologia - Saúde Coletiva", "Saúde Coletiva, MFC e Epidemiologia", "infectologia-saude-coletiva", 0.69),
+    ("Cirurgia Hepatobiliar Oncológica", "Cirurgia", "cirurgia-hepatobiliar-oncologica", 0.52),
+    ("Ortopedia", "Cirurgia", "ortopedia", 0.52),
+    ("Ortopedia - Trauma", "Cirurgia", "ortopedia-trauma", 0.52),
+    ("Emergência (Clínica)", "Clínica Médica", "emergencia-clinica", 0.52),
+    ("Geriatria", "Clínica Médica", "geriatria", 0.52),
+    ("Infectologia", "Clínica Médica", "infectologia", 0.52),
+    ("Ginecologia Oncológica", "Ginecologia e Mastologia", "ginecologia-oncologica", 0.52),
+    ("Ginecologia - Reprodução", "Ginecologia e Mastologia", "ginecologia-reproducao", 0.52),
+    ("Obstetrícia - Endocrinologia", "Obstetrícia", "obstetricia-endocrinologia", 0.52),
+    ("Neonatologia - Infectologia", "Pediatria e Neonatologia", "neonatologia-infectologia", 0.52),
+    ("Pediatria - Oncologia", "Pediatria e Neonatologia", "pediatria-oncologia", 0.52),
+    ("Cardiologia - MFC", "Saúde Coletiva, MFC e Epidemiologia", "cardiologia-mfc", 0.52),
+    ("Ética - Adolescente", "Saúde Coletiva, MFC e Epidemiologia", "etica-adolescente", 0.52),
+]
+SUBAREA_NAMES = [nome for nome, *_ in SUBAREAS]
+SUBAREA_INFO = {nome: {"grande_area": ga, "slug": slug, "prevalencia": pct} for nome, ga, slug, pct in SUBAREAS}
+SUBAREAS_BY_GRANDE_AREA = {}
+for nome, ga, *_ in SUBAREAS:
+    SUBAREAS_BY_GRANDE_AREA.setdefault(ga, []).append(nome)
+
+
+def normalize_subarea(value, grande_area: str = "") -> str:
+    """Igual a normalize_grande_area, mas pra subárea. Se vier algo que não
+    bate com nenhuma das 47, devolve "" (fica só com a grande área, sem
+    subárea — melhor que salvar lixo)."""
+    if not value:
+        return ""
+    value_norm = str(value).strip().lower()
+    for nome in SUBAREA_NAMES:
+        if nome.lower() == value_norm:
+            return nome
+    for nome in SUBAREA_NAMES:
+        if nome.lower() in value_norm or value_norm in nome.lower():
+            return nome
+    return ""
+
+
 def normalize_grande_area(value) -> str:
     """Aceita o que a IA mandou de volta e devolve um nome canônico das 6
     áreas, ou "" se não bater com nada reconhecível (evita salvar lixo)."""
@@ -145,14 +220,28 @@ GRANDE_AREA_BLOCK = (
     "não se encaixar claramente em nenhuma, use a mais próxima — não deixe em branco."
 )
 
+SUBAREA_BLOCK = (
+    'CLASSIFICAÇÃO POR SUBÁREA (melhor esforço): além de "grande_area", tente também '
+    'preencher um campo "subarea" com o nome de subespecialidade mais específico que '
+    "descreve a ficha, escolhendo EXATAMENTE um destes valores (copie a grafia exata) "
+    "quando um deles descrever bem o conteúdo:\n"
+    + "\n".join(f'- "{nome}"' for nome in SUBAREA_NAMES)
+    + '\nEsta lista NÃO é exaustiva — cobre só as subáreas mais frequentes numa prova de '
+    'residência, não toda a medicina. Se a ficha for de uma subespecialidade que não '
+    'está na lista (ex: oftalmologia, otorrinolaringologia geral), devolva "subarea": '
+    '"" (vazio) em vez de forçar um encaixe ruim — errar por deixar em branco é melhor '
+    "que errar classificando errado."
+)
+
 QA_BLOCK = """FORMATO PERGUNTA-E-RESPOSTA (tipo "qa"):
 - "pergunta": específica o bastante para ter só UMA resposta correta.
 - "resposta": curta e precisa (uma frase ou poucas palavras).
 Exemplos (temas diferentes do texto abaixo, apenas para calibrar o padrão — note que
-"grande_area" muda conforme o assunto de cada ficha, não é sempre o mesmo valor):
+"grande_area" e "subarea" mudam conforme o assunto de cada ficha, não são sempre o
+mesmo valor, e "subarea" pode ficar vazio quando não houver opção que descreva bem):
 [
-  {"tipo": "qa", "pergunta": "Qual o tratamento de escolha para dissecção aguda de aorta tipo A?", "resposta": "Cirurgia de emergência imediata", "grande_area": "Cirurgia"},
-  {"tipo": "qa", "pergunta": "Qual o exame de escolha para diagnóstico de TEP em paciente hemodinamicamente estável?", "resposta": "Angiotomografia de tórax", "grande_area": "Clínica Médica"}
+  {"tipo": "qa", "pergunta": "Qual o tratamento de escolha para dissecção aguda de aorta tipo A?", "resposta": "Cirurgia de emergência imediata", "grande_area": "Cirurgia", "subarea": ""},
+  {"tipo": "qa", "pergunta": "Qual o exame de escolha para diagnóstico de TEP em paciente hemodinamicamente estável?", "resposta": "Angiotomografia de tórax", "grande_area": "Clínica Médica", "subarea": "Pneumologia"}
 ]"""
 
 CLOZE_BLOCK = """FORMATO CLOZE (tipo "cloze") — oclusão no estilo Anki:
@@ -161,10 +250,11 @@ CLOZE_BLOCK = """FORMATO CLOZE (tipo "cloze") — oclusão no estilo Anki:
 - Idealmente UMA lacuna por ficha ({{c1::...}}); no máximo duas ({{c1::...}} e {{c2::...}}).
 - A frase precisa fazer sentido sozinha e a lacuna ter uma única resposta óbvia.
 Exemplos (temas diferentes do texto abaixo, apenas para calibrar o padrão — note que
-"grande_area" muda conforme o assunto de cada ficha, não é sempre o mesmo valor):
+"grande_area" e "subarea" mudam conforme o assunto de cada ficha, não são sempre o
+mesmo valor, e "subarea" pode ficar vazio quando não houver opção que descreva bem):
 [
-  {"tipo": "cloze", "texto": "Na dissecção de aorta tipo A, o tratamento de escolha é a {{c1::cirurgia de emergência}}.", "grande_area": "Cirurgia"},
-  {"tipo": "cloze", "texto": "Na insuficiência cardíaca com fração de ejeção reduzida, a classe de fármaco associada a maior redução de mortalidade é o {{c1::inibidor de SGLT2}}.", "grande_area": "Clínica Médica"}
+  {"tipo": "cloze", "texto": "Na dissecção de aorta tipo A, o tratamento de escolha é a {{c1::cirurgia de emergência}}.", "grande_area": "Cirurgia", "subarea": ""},
+  {"tipo": "cloze", "texto": "Na insuficiência cardíaca com fração de ejeção reduzida, a classe de fármaco associada a maior redução de mortalidade é o {{c1::inibidor de SGLT2}}.", "grande_area": "Clínica Médica", "subarea": "Cardiologia"}
 ]"""
 
 _OUTPUT_SKELETON = """FORMATO DE SAÍDA — responda APENAS com um JSON válido, sem markdown, sem texto
@@ -189,18 +279,18 @@ def _format_blocks(formato: str):
         return (
             CLOZE_BLOCK,
             'Gere APENAS fichas do tipo "cloze".',
-            '{"tipo": "cloze", "texto": "frase com {{c1::termo escondido}}", "grande_area": "..."}',
+            '{"tipo": "cloze", "texto": "frase com {{c1::termo escondido}}", "grande_area": "...", "subarea": "..."}',
         )
     if formato == "ambos":
         return (
             QA_BLOCK + "\n\n" + CLOZE_BLOCK,
             "Gere fichas dos DOIS tipos, escolhendo para cada fato o formato que memoriza melhor.",
-            '{"tipo": "qa", "pergunta": "...", "resposta": "...", "grande_area": "..."}  OU  {"tipo": "cloze", "texto": "... {{c1::termo}} ...", "grande_area": "..."}',
+            '{"tipo": "qa", "pergunta": "...", "resposta": "...", "grande_area": "...", "subarea": "..."}  OU  {"tipo": "cloze", "texto": "... {{c1::termo}} ...", "grande_area": "...", "subarea": "..."}',
         )
     return (
         QA_BLOCK,
         'Gere APENAS fichas do tipo "qa".',
-        '{"tipo": "qa", "pergunta": "...", "resposta": "...", "grande_area": "..."}',
+        '{"tipo": "qa", "pergunta": "...", "resposta": "...", "grande_area": "...", "subarea": "..."}',
     )
 
 STUDY_HEADER = """Você é um médico especialista em criar flashcards de altíssima qualidade para \
@@ -409,6 +499,7 @@ def build_generate_prompt(
 
     exemplo_block, tipos_txt, cards_desc = _format_blocks(formato)
     parts.append(GRANDE_AREA_BLOCK)
+    parts.append(SUBAREA_BLOCK)
     parts.append(exemplo_block)
     parts.append(
         _OUTPUT_SKELETON.replace("__TIPOS__", tipos_txt).replace("__CARDS_DESC__", cards_desc)
@@ -479,17 +570,26 @@ def normalize_flashcards(raw) -> list:
         pergunta = str(card.get("pergunta", "")).strip()
         resposta = str(card.get("resposta", "")).strip()
         grande_area = normalize_grande_area(card.get("grande_area"))
+        subarea = normalize_subarea(card.get("subarea"), grande_area)
 
         if not tipo:
             tipo = "cloze" if (texto and not (pergunta and resposta)) else "qa"
 
         if tipo == "cloze":
             if texto:
-                cleaned.append({"tipo": "cloze", "texto": texto, "grande_area": grande_area})
+                cleaned.append(
+                    {"tipo": "cloze", "texto": texto, "grande_area": grande_area, "subarea": subarea}
+                )
         else:
             if pergunta and resposta:
                 cleaned.append(
-                    {"tipo": "qa", "pergunta": pergunta, "resposta": resposta, "grande_area": grande_area}
+                    {
+                        "tipo": "qa",
+                        "pergunta": pergunta,
+                        "resposta": resposta,
+                        "grande_area": grande_area,
+                        "subarea": subarea,
+                    }
                 )
     return cleaned
 
@@ -794,7 +894,16 @@ def grande_areas():
                     "prevalencia_acesso_direto": GRANDE_AREA_PREVALENCIA_ACESSO_DIRETO.get(nome, 0),
                 }
                 for nome, slug in GRANDE_AREAS
-            ]
+            ],
+            "subareas": [
+                {
+                    "nome": nome,
+                    "grande_area": info["grande_area"],
+                    "slug": info["slug"],
+                    "prevalencia_acesso_direto": info["prevalencia"],
+                }
+                for nome, info in SUBAREA_INFO.items()
+            ],
         }
     )
 
