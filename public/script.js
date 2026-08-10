@@ -27,6 +27,7 @@
     resolveResultWrap: $("resolveResultWrap"),
     resolveResult: $("resolveResult"),
     useResolutionBtn: $("useResolutionBtn"),
+    clearBtn: $("clearBtn"),
     pasteBtn: $("pasteBtn"),
     openEvidenceBtn: $("openEvidenceBtn"),
     generateBtn: $("generateBtn"),
@@ -220,6 +221,15 @@ function initTheme() {
     const cleaned = htmlToStructuredText(html);
     insertTextInResolucao(cleaned);
   });
+
+  function clearSite() {
+    // Um F5 de verdade: garante que absolutamente tudo volta ao estado
+    // inicial (resolução, imagens, fichas, painéis abertos, badges) sem
+    // risco de esquecer algum pedaço de estado espalhado pelo JS. As
+    // configurações (chave de API, baralho, endereços) sobrevivem porque
+    // ficam no localStorage, recarregadas normalmente por loadSettings().
+    window.location.href = window.location.pathname;
+  }
 
   async function pasteFromClipboard() {
     try {
@@ -1174,6 +1184,7 @@ function initTheme() {
   els.downloadApkgBtn.addEventListener("click", downloadCardsAsApkg);
   els.selectAllBtn.addEventListener("click", () => setAllCardsSelected(true));
   els.selectNoneBtn.addEventListener("click", () => setAllCardsSelected(false));
+  els.clearBtn.addEventListener("click", clearSite);
   els.pasteBtn.addEventListener("click", pasteFromClipboard);
   els.temaCustomBtn.addEventListener("click", handleTemaCustomSubmit);
   els.temaInput.addEventListener("keydown", (e) => {
