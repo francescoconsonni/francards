@@ -113,9 +113,15 @@ REGRAS OBRIGATÓRIAS (siga todas, sem exceção):
    um parágrafo.
 5. Não crie flashcards sobre informação trivial, óbvia ou que não estava na resolução.
 6. Não repita a mesma informação em cards diferentes.
-7. Gere entre 3 e 10 flashcards, de acordo com a densidade real de informação relevante.
-8. Se a resolução não tiver conteúdo suficiente para nenhum flashcard de qualidade,
-   retorne uma lista de flashcards vazia."""
+7. Quando a resolução permitir, prefira perguntas que peçam o PRÓXIMO PASSO/conduta
+   diante de um achado, não só o reconhecimento do diagnóstico isolado — é o padrão de
+   pergunta mais recorrente em provas de residência.
+8. Se dois fatos da resolução são fáceis de confundir entre si (doses parecidas,
+   condutas semelhantes para quadros diferentes), formule a ficha de um jeito que force
+   a diferenciação explícita entre eles, em vez de testá-los como se fossem isolados.
+9. Gere entre 3 e 10 flashcards, de acordo com a densidade real de informação relevante.
+10. Se a resolução não tiver conteúdo suficiente para nenhum flashcard de qualidade,
+    retorne uma lista de flashcards vazia."""
 
 GRANDE_AREA_BLOCK = (
     "CLASSIFICAÇÃO POR GRANDE ÁREA: além dos campos do card, cada ficha precisa de um "
@@ -128,10 +134,11 @@ GRANDE_AREA_BLOCK = (
 QA_BLOCK = """FORMATO PERGUNTA-E-RESPOSTA (tipo "qa"):
 - "pergunta": específica o bastante para ter só UMA resposta correta.
 - "resposta": curta e precisa (uma frase ou poucas palavras).
-Exemplos (tema diferente do texto abaixo, apenas para calibrar o padrão):
+Exemplos (temas diferentes do texto abaixo, apenas para calibrar o padrão — note que
+"grande_area" muda conforme o assunto de cada ficha, não é sempre o mesmo valor):
 [
   {"tipo": "qa", "pergunta": "Qual o tratamento de escolha para dissecção aguda de aorta tipo A?", "resposta": "Cirurgia de emergência imediata", "grande_area": "Cirurgia"},
-  {"tipo": "qa", "pergunta": "Por que antiagregantes são contraindicados na dissecção de aorta?", "resposta": "Aumentam o risco de ruptura catastrófica", "grande_area": "Cirurgia"}
+  {"tipo": "qa", "pergunta": "Qual o exame de escolha para diagnóstico de TEP em paciente hemodinamicamente estável?", "resposta": "Angiotomografia de tórax", "grande_area": "Clínica Médica"}
 ]"""
 
 CLOZE_BLOCK = """FORMATO CLOZE (tipo "cloze") — oclusão no estilo Anki:
@@ -139,10 +146,11 @@ CLOZE_BLOCK = """FORMATO CLOZE (tipo "cloze") — oclusão no estilo Anki:
 - Esconda o que REALMENTE importa memorizar (o conceito-chave), não uma palavra trivial.
 - Idealmente UMA lacuna por ficha ({{c1::...}}); no máximo duas ({{c1::...}} e {{c2::...}}).
 - A frase precisa fazer sentido sozinha e a lacuna ter uma única resposta óbvia.
-Exemplos (tema diferente do texto abaixo, apenas para calibrar o padrão):
+Exemplos (temas diferentes do texto abaixo, apenas para calibrar o padrão — note que
+"grande_area" muda conforme o assunto de cada ficha, não é sempre o mesmo valor):
 [
   {"tipo": "cloze", "texto": "Na dissecção de aorta tipo A, o tratamento de escolha é a {{c1::cirurgia de emergência}}.", "grande_area": "Cirurgia"},
-  {"tipo": "cloze", "texto": "Na dissecção de aorta, administra-se um {{c1::betabloqueador}} antes do vasodilatador para controlar a frequência cardíaca.", "grande_area": "Cirurgia"}
+  {"tipo": "cloze", "texto": "Na insuficiência cardíaca com fração de ejeção reduzida, a classe de fármaco associada a maior redução de mortalidade é o {{c1::inibidor de SGLT2}}.", "grande_area": "Clínica Médica"}
 ]"""
 
 _OUTPUT_SKELETON = """FORMATO DE SAÍDA — responda APENAS com um JSON válido, sem markdown, sem texto
@@ -198,10 +206,18 @@ REGRAS OBRIGATÓRIAS (siga todas, sem exceção):
 4. Respostas devem ser CURTAS e PRECISAS — idealmente uma frase ou poucas palavras.
 5. Não crie flashcards sobre informação que não estava explícita no material.
 6. Não repita a mesma informação em cards diferentes.
-7. Gere entre 5 e 20 flashcards nesta rodada, conforme a densidade real do material —
-   se o material for extenso, o usuário pode pedir mais fichas depois (botão "gerar mais").
-8. Se o material não tiver conteúdo suficiente para nenhum flashcard de qualidade,
-   retorne uma lista de flashcards vazia."""
+7. Quando o material permitir, prefira perguntas que peçam o PRÓXIMO PASSO/conduta
+   diante de um achado, não só o reconhecimento do diagnóstico isolado — é o padrão de
+   pergunta mais recorrente em provas de residência.
+8. Se dois fatos do material são fáceis de confundir entre si (doses parecidas,
+   critérios semelhantes para quadros diferentes), formule a ficha de um jeito que force
+   a diferenciação explícita entre eles, em vez de testá-los como se fossem isolados.
+9. Gere até 20 flashcards nesta rodada, conforme a densidade real do material — não
+   existe piso mínimo obrigatório. Priorize QUALIDADE sobre quantidade: é melhor devolver
+   3 fichas excelentes que 10 fracas só pra parecer completo. Se o material for extenso,
+   o usuário pode pedir mais fichas depois (botão "gerar mais").
+10. Se o material não tiver conteúdo suficiente para nenhum flashcard de qualidade,
+    retorne uma lista de flashcards vazia."""
 
 TIPO_CONTEUDO_BLOCKS = {
     "aula": (
@@ -235,11 +251,22 @@ OBJETIVO_BLOCKS = {
         'diferente". Prefira perguntas que peçam para prever a próxima conduta, não só '
         "reconhecer um nome."
     ),
-    "protocolo": (
-        "OBJETIVO DESTA RODADA: fixação de protocolo e números. Priorize fichas CLOZE "
-        "testando exatamente doses, prazos, critérios diagnósticos numéricos, escalas e "
+    "protocolo": lambda formato: (
+        "OBJETIVO DESTA RODADA: fixação de protocolo e números. Priorize testar "
+        "exatamente doses, prazos, critérios diagnósticos numéricos, escalas e "
         "classificações — o tipo de informação que se esquece por não ter lógica "
-        "embutida, só decoreba."
+        "embutida, só decoreba. "
+        + (
+            "Como o formato desta rodada é CLOZE, esconda o número/valor exato na "
+            "lacuna {{c1::...}}, nunca um termo secundário da frase."
+            if formato == "cloze"
+            else "Como o formato desta rodada é PERGUNTA-RESPOSTA, a resposta deve ser "
+            "só o número/valor exato (ex: \"7,5 mg/kg\"), nunca uma explicação."
+            if formato == "qa"
+            else "Prefira o formato CLOZE para os números/valores, escondendo-os na "
+            "lacuna {{c1::...}} — reserve pergunta-resposta para o que não é um valor "
+            "isolado."
+        )
     ),
     "caso-clinico": (
         "OBJETIVO DESTA RODADA: estilo caso clínico. Sempre que possível, formule a "
@@ -252,16 +279,22 @@ OBJETIVO_BLOCKS = {
 
 PROVA_ALVO_BLOCKS = {
     "hcfmusp-acesso-direto": (
-        "CONTEXTO DE PROVA-ALVO: HCFMUSP — Acesso Direto (residência médica). Ao "
-        "formular as fichas, dê prioridade extra (sem inventar conteúdo que não esteja "
-        "no material) a temas que essa prova historicamente cobra com frequência: rotura "
-        "prematura de membranas e profilaxia para GBS, contraindicações a parto vaginal, "
-        "alvo pressórico em hipertensão crônica gestacional, vigilância fetal por idade "
-        "gestacional, reanimação neonatal, icterícia neonatal, desenho de estudo e "
-        "vieses em epidemiologia, pré-eclâmpsia/eclâmpsia, colangite/coledocolitíase, "
-        "cetoacidose diabética e síndrome do ovário policístico. Se o material tocar "
-        "algum desses temas, não deixe de extrair uma ficha sobre ele, mesmo que pareça "
-        "um detalhe menor."
+        "CONTEXTO DE PROVA-ALVO: HCFMUSP — Acesso Direto (residência médica). Dois "
+        "padrões institucionais fortes, confirmados em 5 trilhas diferentes de prova do "
+        "HCFMUSP (não só Acesso Direto), valem prioridade extra sempre que o material "
+        "tocar neles: (1) medicina intensiva/emergência como eixo transversal — questões "
+        "de manejo agudo, UTI e emergência aparecem com força em todas as áreas, não só "
+        "em blocos dedicados; (2) oncologia como o tema mais cobrado quando agregado "
+        "entre subáreas — vale prioridade mesmo quando a oncologia aparece só de forma "
+        "tangencial no material. Além disso, dê prioridade extra (sem inventar conteúdo "
+        "que não esteja no material) a temas que a prova de Acesso Direto historicamente "
+        "cobra com frequência: rotura prematura de membranas e profilaxia para GBS, "
+        "contraindicações a parto vaginal, alvo pressórico em hipertensão crônica "
+        "gestacional, vigilância fetal por idade gestacional, reanimação neonatal, "
+        "icterícia neonatal, desenho de estudo e vieses em epidemiologia, "
+        "pré-eclâmpsia/eclâmpsia, colangite/coledocolitíase, cetoacidose diabética e "
+        "síndrome do ovário policístico. Se o material tocar algum desses pontos, não "
+        "deixe de extrair uma ficha sobre ele, mesmo que pareça um detalhe menor."
     ),
 }
 
@@ -311,6 +344,8 @@ def build_generate_prompt(
         if bloco_tipo:
             parts.append(bloco_tipo)
         bloco_objetivo = OBJETIVO_BLOCKS.get(objetivo)
+        if callable(bloco_objetivo):
+            bloco_objetivo = bloco_objetivo(formato)
         if bloco_objetivo:
             parts.append(bloco_objetivo)
         bloco_prova = PROVA_ALVO_BLOCKS.get(prova_alvo)
@@ -339,8 +374,8 @@ def build_generate_prompt(
         )
 
     exemplo_block, tipos_txt, cards_desc = _format_blocks(formato)
-    parts.append(exemplo_block)
     parts.append(GRANDE_AREA_BLOCK)
+    parts.append(exemplo_block)
     parts.append(
         _OUTPUT_SKELETON.replace("__TIPOS__", tipos_txt).replace("__CARDS_DESC__", cards_desc)
     )
