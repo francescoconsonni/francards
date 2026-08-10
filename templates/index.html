@@ -29,26 +29,27 @@
     <span class="tab">FOCO CG 2027</span>
     <h1>Gerador&nbsp;de Flashcards</h1>
     <p class="sub">Cole a resolução de uma questão, a IA extrai o que vale memorizar e você manda direto pro Anki no formato de flashcard.</p>
-    <button id="themeToggle" class="btn-ghost" type="button" title="Alternar tema">🌙</button>
-    <span id="ankiStatus" class="status-pill" data-state="checking">verificando AnkiConnect…</span>
-
-  <header class="masthead">
-  </header>
-    <button id="docModeToggleBtn" class="btn-ghost" type="button" title="Gerar fichas a partir de um documento, aula ou capítulo de livro">📚 Documento</button>
-    <button id="progressToggleBtn" class="btn-ghost" type="button" title="Prevalência × cobertura no Anki, por grande área">📊 Progresso</button>
+    <div class="masthead-row">
+      <button id="themeToggle" class="btn-ghost" type="button" title="Alternar tema">🌙</button>
+      <span id="ankiStatus" class="status-pill" data-state="checking">verificando AnkiConnect…</span>
+    </div>
+    <div class="masthead-row">
+      <button id="docModeToggleBtn" class="btn-ghost" type="button" title="Gerar fichas a partir de um documento, aula ou capítulo de livro">📚 Documento</button>
+      <button id="progressToggleBtn" class="btn-ghost" type="button" title="Prevalência × cobertura no Anki, por subárea">📊 Progresso</button>
+    </div>
   </header>
 
   <main>
     <!-- PAINEL DE DOCUMENTO/AULA — separado, oculto por padrão -->
     <!-- PAINEL DE PROGRESSO — prevalência (Acesso Direto) × cobertura no seu Anki -->
     <section class="panel doc-panel" id="progressPanel">
-      <h2 class="panel-title"><span class="idx">📊</span> Progresso por grande área</h2>
+      <h2 class="panel-title"><span class="idx">📊</span> Progresso por subárea</h2>
       <p class="hint">
         Prevalência real no Acesso Direto HCFMUSP (2022-2026, 579 questões) comparada
-        com quantas fichas você já tem no Anki marcadas com cada área — classificação
-        simples em 6 categorias, feita pela IA ao gerar cada ficha (e editável por você
-        antes de enviar). Não é um número perfeito, é um indicativo de onde pode faltar
-        volume.
+        com quantas fichas você já tem no Anki marcadas com cada subárea — 47 categorias
+        (as que apareceram 3+ vezes nas últimas 5 provas, cobrindo 78% da prova),
+        classificadas pela IA ao gerar cada ficha e editáveis por você antes de enviar.
+        Não é um número perfeito, é um indicativo de onde pode faltar volume.
       </p>
       <div class="actions">
         <button id="progressRefreshBtn" class="btn-secondary" type="button">Atualizar do Anki</button>
@@ -250,6 +251,7 @@
       </label>
 
       <div class="actions">
+        <button id="clearBtn" class="btn-ghost" type="button" title="Limpa a resolução, imagens e fichas geradas pra começar uma questão nova">🧹 Limpar</button>
         <button id="pasteBtn" class="btn-secondary" type="button">📋 Colar</button>
         <button id="openEvidenceBtn" class="btn-orange" type="button">↗ Abrir OpenEvidence</button>
         <button id="generateBtn" class="btn-primary">Gerar flashcards</button>
