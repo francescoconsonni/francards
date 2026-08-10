@@ -119,8 +119,22 @@ REGRAS OBRIGATÓRIAS (siga todas, sem exceção):
 8. Se dois fatos da resolução são fáceis de confundir entre si (doses parecidas,
    condutas semelhantes para quadros diferentes), formule a ficha de um jeito que force
    a diferenciação explícita entre eles, em vez de testá-los como se fossem isolados.
-9. Gere entre 3 e 10 flashcards, de acordo com a densidade real de informação relevante.
-10. Se a resolução não tiver conteúdo suficiente para nenhum flashcard de qualidade,
+9. Quando a resolução deixar claro quais achados do enunciado apontam diretamente para
+   o diagnóstico, considere uma ficha de reconhecimento de padrão do tipo "quais achados
+   indicam [diagnóstico/condição]?" — isso treina a habilidade de reconhecer rápido
+   durante a prova, não só recordar o fato depois de já saber a resposta.
+10. Se o raciocínio da resolução envolver uma sequência de decisões encadeadas (ex:
+    achado leva a pedir exame X, resultado de X leva à conduta Y), NÃO tente condensar
+    a cadeia inteira numa ficha só — quebre em fichas separadas, uma por decisão da
+    sequência, mantendo cada uma atômica (regra 1).
+11. EXCEÇÃO CONTROLADA à regra 1: se a resolução tiver um mecanismo/fio condutor
+    fisiopatológico que explica VÁRIOS achados ou condutas ao mesmo tempo, e nenhuma
+    ficha atômica das anteriores cobrir esse mecanismo, inclua NO MÁXIMO 1 ficha
+    adicional de "visão geral" sobre ele — ainda específica o bastante pra ter uma
+    resposta clara (ex: "por que a hipovolemia da pancreatite grave leva a lesão renal
+    pré-renal?"), nunca um "explique o tema" genérico (a regra 2 continua valendo).
+12. Gere entre 3 e 10 flashcards, de acordo com a densidade real de informação relevante.
+13. Se a resolução não tiver conteúdo suficiente para nenhum flashcard de qualidade,
     retorne uma lista de flashcards vazia."""
 
 GRANDE_AREA_BLOCK = (
@@ -212,11 +226,24 @@ REGRAS OBRIGATÓRIAS (siga todas, sem exceção):
 8. Se dois fatos do material são fáceis de confundir entre si (doses parecidas,
    critérios semelhantes para quadros diferentes), formule a ficha de um jeito que force
    a diferenciação explícita entre eles, em vez de testá-los como se fossem isolados.
-9. Gere até 20 flashcards nesta rodada, conforme a densidade real do material — não
-   existe piso mínimo obrigatório. Priorize QUALIDADE sobre quantidade: é melhor devolver
-   3 fichas excelentes que 10 fracas só pra parecer completo. Se o material for extenso,
-   o usuário pode pedir mais fichas depois (botão "gerar mais").
-10. Se o material não tiver conteúdo suficiente para nenhum flashcard de qualidade,
+9. Quando o material deixar claro quais achados apontam diretamente para um diagnóstico
+   ou condição, considere uma ficha de reconhecimento de padrão do tipo "quais achados
+   indicam [diagnóstico/condição]?" — treina reconhecer rápido, não só recordar depois
+   de já saber a resposta.
+10. Se o material trouxer uma sequência de decisões encadeadas (ex: achado leva a pedir
+    exame X, resultado de X leva à conduta Y), NÃO tente condensar a cadeia inteira numa
+    ficha só — quebre em fichas separadas, uma por decisão da sequência, mantendo cada
+    uma atômica (regra 1).
+11. EXCEÇÃO CONTROLADA à regra 1: se o material tiver um mecanismo/fio condutor que
+    explica VÁRIOS pontos ao mesmo tempo, e nenhuma ficha atômica das anteriores cobrir
+    esse mecanismo, inclua NO MÁXIMO 1 ficha adicional de "visão geral" sobre ele — ainda
+    específica o bastante pra ter uma resposta clara, nunca um "explique o tema" genérico
+    (a regra 2 continua valendo).
+12. Gere até 20 flashcards nesta rodada, conforme a densidade real do material — não
+    existe piso mínimo obrigatório. Priorize QUALIDADE sobre quantidade: é melhor devolver
+    3 fichas excelentes que 10 fracas só pra parecer completo. Se o material for extenso,
+    o usuário pode pedir mais fichas depois (botão "gerar mais").
+13. Se o material não tiver conteúdo suficiente para nenhum flashcard de qualidade,
     retorne uma lista de flashcards vazia."""
 
 TIPO_CONTEUDO_BLOCKS = {
@@ -361,16 +388,23 @@ def build_generate_prompt(
     existentes = existentes or []
     ja_existentes = []
     for c in existentes:
-        if isinstance(c, dict):
-            val = str(c.get("pergunta", "")).strip() or str(c.get("texto", "")).strip()
-            if val:
-                ja_existentes.append(val)
+        if not isinstance(c, dict):
+            continue
+        pergunta = str(c.get("pergunta", "")).strip()
+        resposta = str(c.get("resposta", "")).strip()
+        texto = str(c.get("texto", "")).strip()
+        if pergunta and resposta:
+            ja_existentes.append(f"{pergunta} → {resposta}")
+        elif texto:
+            ja_existentes.append(texto)
     if ja_existentes:
         lista = "\n".join(f"- {p}" for p in ja_existentes)
         parts.append(
-            "AS FICHAS ABAIXO JÁ EXISTEM. NÃO as repita nem crie variações equivalentes. "
-            "Gere apenas fichas NOVAS e complementares (se não houver nada novo de qualidade, "
-            "devolva uma lista de flashcards vazia):\n" + lista
+            "AS FICHAS ABAIXO JÁ EXISTEM (pergunta → resposta, ou o texto cloze). NÃO as "
+            "repita nem crie variações equivalentes — inclusive se a pergunta ficar com "
+            "palavras diferentes, se o FATO testado for o mesmo já mostrado abaixo, não "
+            "conta como novo. Gere apenas fichas NOVAS e complementares (se não houver "
+            "nada novo de qualidade, devolva uma lista de flashcards vazia):\n" + lista
         )
 
     exemplo_block, tipos_txt, cards_desc = _format_blocks(formato)
