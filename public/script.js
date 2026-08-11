@@ -1273,7 +1273,7 @@ function initTheme() {
 
     let ankiOk = true;
     const queries = SUBAREAS.map(async (s) => {
-      const tag = `hcfmusp::${GRANDE_AREA_SLUGS[s.grande_area] || "outra"}::${s.slug}`;
+      const tag = `hcfmusp::${GRANDE_AREA_SLUGS[s.grande_area]}::${s.slug}`;
       try {
         const ids = await ankiRequest("findCards", { query: `tag:${tag}` });
         return { nome: s.nome, grande_area: s.grande_area, prevalencia: s.prevalencia_acesso_direto, count: Array.isArray(ids) ? ids.length : 0 };
