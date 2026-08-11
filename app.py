@@ -991,6 +991,25 @@ def _deck_id_for_name(deck_name: str) -> int:
     return int(digest, 16)
 
 
+_GRANDE_AREA_SLUG_MAP = {nome: slug for nome, slug in GRANDE_AREAS}
+
+
+def hcfmusp_tag_for_card(card: dict):
+    """Monta a tag hcfmusp::área[::subárea] a partir dos campos grande_area/
+    subarea da ficha — a mesma lógica que sendCardToAnki já faz no JS pro
+    envio direto ao Anki. Devolve None se a ficha não tiver área válida."""
+    grande_area = (card.get("grande_area") or "").strip()
+    slug = _GRANDE_AREA_SLUG_MAP.get(grande_area)
+    if not slug:
+        return None
+    tag = f"hcfmusp::{slug}"
+    subarea = (card.get("subarea") or "").strip()
+    sub_info = SUBAREA_INFO.get(subarea)
+    if sub_info:
+        tag += f"::{sub_info['slug']}"
+    return tag
+
+
 @app.route("/api/export-apkg", methods=["POST"])
 def export_apkg():
     data = request.get_json(force=True, silent=True) or {}
@@ -1011,11 +1030,16 @@ def export_apkg():
             continue
         tipo = str(card.get("tipo") or "").strip().lower()
 
+        card_tags = list(tag_list)
+        hcfmusp_tag = hcfmusp_tag_for_card(card)
+        if hcfmusp_tag:
+            card_tags.append(hcfmusp_tag)
+
         if tipo == "cloze":
             texto = str(card.get("texto") or "").strip()
             if not texto or not re.search(r"\{\{c\d+::", texto):
                 continue
-            note = genanki.Note(model=_APKG_CLOZE_MODEL, fields=[html.escape(texto)], tags=tag_list)
+            note = genanki.Note(model=_APKG_CLOZE_MODEL, fields=[html.escape(texto)], tags=card_tags)
         else:
             pergunta = str(card.get("pergunta") or "").strip()
             resposta = str(card.get("resposta") or "").strip()
@@ -1024,7 +1048,7 @@ def export_apkg():
             note = genanki.Note(
                 model=_APKG_BASIC_MODEL,
                 fields=[html.escape(pergunta), html.escape(resposta)],
-                tags=tag_list,
+                tags=card_tags,
             )
 
         deck.add_note(note)
