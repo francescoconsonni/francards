@@ -90,9 +90,13 @@ escolher o provedor de IA, colar sua chave de API e gerar as fichas.
    clínica) — arraste, escolha o arquivo ou cole (Ctrl+V) na área de imagem. No
    **Gemini**, a IA analisa a figura ao criar as fichas (o DeepSeek não lê
    imagens). Marque *"Anexar a imagem também nas fichas"* para que ela vá junto
-   no cartão do Anki.
+   no cartão do Anki. O botão **🧹** (ao lado de "Colar") limpa tudo — resolução,
+   imagens, fichas geradas — e recarrega a página, pronto pra colar a próxima
+   questão. Suas configurações (chave de API, baralho, etc.) não são afetadas,
+   ficam salvas no navegador.
 3. Revise as fichas geradas — os campos de pergunta e resposta são
-   editáveis diretamente no cartão. Cada ficha tem uma caixinha de seleção
+   editáveis diretamente no cartão, assim como a **classificação por área e
+   subárea** (veja 3.2 abaixo). Cada ficha tem uma caixinha de seleção
    (marcada por padrão) — desmarque as que não quiser incluir num download.
 4. Clique em **Enviar para o Anki** em cada ficha, ou em **Enviar todas para
    o Anki** para mandar tudo de uma vez (sempre manda todas, independente da
@@ -130,6 +134,27 @@ Clique em **"📚 Documento"** no topo da página pra abrir um painel separado
 Prefere sintetizar o material antes? O botão **"↗ Abrir no NotebookLM"**
 dentro do painel leva direto pra lá — cole o PDF, peça um resumo, cole o
 resultado de volta no campo de texto.
+
+### 3.2 Classificação por área/subárea e o painel de progresso
+
+Toda ficha gerada já vem classificada pela IA numa **grande área** (Clínica
+Médica, Cirurgia, Pediatria e Neonatologia, Saúde Coletiva/MFC/Epidemiologia,
+Obstetrícia, Ginecologia e Mastologia) e, quando possível, numa **subárea**
+mais específica (47 opções — Cardiologia, Cirurgia do Trauma, Epidemiologia,
+etc., as que mais aparecem nas últimas 5 provas de Acesso Direto do
+HCFMUSP). Os dois campos aparecem como seletores editáveis em cada ficha —
+corrija se a IA errar antes de enviar. O seletor de subárea se ajusta
+automaticamente às opções da grande área escolhida.
+
+Ao enviar pro Anki (via AnkiConnect ou pelo `.apkg`), cada ficha ganha uma
+tag `hcfmusp::área::subárea` automaticamente, junto das tags que você
+configurar manualmente.
+
+Clique em **"📊 Progresso"** no topo da página pra ver um painel comparando a
+prevalência real de cada subárea nas provas com quantas fichas você já tem no
+Anki marcadas com aquela tag — um indicativo de onde pode estar faltando
+volume de estudo, não um número perfeito (a classificação é feita por IA e
+pode errar).
 
 ---
 
@@ -421,5 +446,7 @@ python test_extractor.py     # extração da extensão (seleção / seletores / 
 Os dois últimos exigem o Playwright/Chromium (`pip install playwright && playwright install chromium`).
 O backend é testado com a IA (e o AnkiConnect) mockados — nenhuma chave de
 API é gasta e nada é enviado a um AnkiConnect de verdade. Os testes estão em
-dois arquivos: `test_app.py` (geração/resolução de fichas) e
-`test_new_features.py` (proxy do Anki, exportação `.apkg`, modo documento).
+três arquivos: `test_app.py` (geração/resolução de fichas),
+`test_new_features.py` (proxy do Anki, exportação `.apkg`, modo documento) e
+`test_classification.py` (classificação por área/subárea, tag hcfmusp no
+Anki e no `.apkg`).
