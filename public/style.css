@@ -344,7 +344,7 @@ button:focus-visible {
   background: transparent;
   color: var(--ink-soft);
   border-color: var(--line);
-  font-size: 0.78rem;
+  font-size: 0.95rem;
   padding: 0.4rem 0.7rem;
 }
 .btn-ghost:hover:not(:disabled) { border-color: var(--flag); color: var(--flag); }
